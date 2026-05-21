@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-background text-white;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10;
+  }
+  
+  .glass-card {
+    @apply glass rounded-2xl p-6;
+  }
+  
+  .neon-glow {
+    @apply shadow-[0_0_20px_rgba(91,46,255,0.5),0_0_40px_rgba(0,166,255,0.3)];
+  }
+  
+  .neon-glow-hover:hover {
+    @apply shadow-[0_0_30px_rgba(91,46,255,0.7),0_0_60px_rgba(0,166,255,0.5)];
+  }
+  
+  .gradient-text {
+    @apply bg-gradient-primary bg-clip-text text-transparent;
+  }
+  
+  .gradient-border {
+    @apply relative;
+  }
+  
+  .gradient-border::before {
+    @apply absolute inset-0 rounded-2xl p-[1px];
+    content: '';
+    background: linear-gradient(135deg, #5B2EFF 0%, #4A3DFF 40%, #00A6FF 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Background blobs */
+.bg-blob {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.3;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.bg-blob-1 {
+  width: 400px;
+  height: 400px;
+  background: #5B2EFF;
+  top: 10%;
+  left: 10%;
+  animation: blob-float 8s ease-in-out infinite;
+}
+
+.bg-blob-2 {
+  width: 300px;
+  height: 300px;
+  background: #00A6FF;
+  top: 60%;
+  right: 10%;
+  animation: blob-float 10s ease-in-out infinite reverse;
+}
+
+.bg-blob-3 {
+  width: 350px;
+  height: 350px;
+  background: #4A3DFF;
+  bottom: 10%;
+  left: 30%;
+  animation: blob-float 12s ease-in-out infinite;
+}
+
+@keyframes blob-float {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(30px, -50px) scale(1.1);
+  }
+  66% {
+    transform: translate(-20px, 20px) scale(0.9);
+  }
+}
