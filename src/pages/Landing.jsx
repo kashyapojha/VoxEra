@@ -27,10 +27,10 @@ const Landing = () => {
   ]
 
   const stats = [
-    { value: '99.9%', label: 'Uptime' },
-    { value: '10M+', label: 'Calls Processed' },
-    { value: '50ms', label: 'Avg Latency' },
-    { value: '24/7', label: 'Support' }
+    { value: '', label: 'Uptime' },
+    { value: '', label: 'Calls Processed' },
+    { value: '', label: 'Avg Latency' },
+    { value: '', label: 'Support' }
   ]
 
   return (

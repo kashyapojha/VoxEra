@@ -13,9 +13,9 @@ const Sidebar = ({ isOpen, onClose }) => {
   ]
 
   const quickActions = [
-    { label: 'Active Calls', icon: Phone, count: 3 },
-    { label: 'Call History', icon: Clock, count: 24 },
-    { label: 'Users', icon: Users, count: 12 },
+    { label: 'Active Calls', icon: Phone, count: 0 },
+    { label: 'Call History', icon: Clock, count:- 0  },
+    { label: 'Users', icon: Users, count: 0 },
   ]
 
   const isActive = (path) => location.pathname === path
