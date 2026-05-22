@@ -18,8 +18,8 @@ export const SocketProvider = ({ children }) => {
 
   useEffect(() => {
     // Mock socket connection - replace with actual server URL
-    const socketInstance = io('http://localhost:3001', {
-      autoConnect: false,
+    const socketInstance = io('http://localhost:5000', {
+      autoConnect: true,
       transports: ['websocket']
     })
 
