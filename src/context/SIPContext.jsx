@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import JsSIP from 'jssip'
 
 const SIPContext = createContext()
@@ -29,25 +29,50 @@ export const SIPProvider = ({ children }) => {
     packetLoss: 0
   })
 
+  let callTimer = null
+
   const addLog = useCallback((level, message) => {
     const timestamp = new Date().toISOString()
     setSipLogs(prev => [...prev, { timestamp, level, message }].slice(-100))
   }, [])
 
+  const startCallTimer = () => {
+    setCallDuration(0)
+
+    callTimer = setInterval(() => {
+      setCallDuration(prev => prev + 1)
+    }, 1000)
+  }
+
+  const stopCallTimer = () => {
+    if (callTimer) {
+      clearInterval(callTimer)
+      callTimer = null
+    }
+
+    setCallDuration(0)
+  }
+
   const register = useCallback((config) => {
     try {
       const socket = new JsSIP.WebSocketInterface(config.websocket)
+
       const configuration = {
         sockets: [socket],
         uri: config.uri,
         password: config.password,
-        register: true
+        register: true,
+        session_timers: false
       }
 
       const userAgent = new JsSIP.UA(configuration)
 
+      userAgent.on('connecting', () => {
+        addLog('info', 'Connecting to WebSocket...')
+      })
+
       userAgent.on('connected', () => {
-        addLog('info', 'WebSocket connected')
+        addLog('success', 'WebSocket connected')
       })
 
       userAgent.on('disconnected', () => {
@@ -103,12 +128,21 @@ export const SIPProvider = ({ children }) => {
 
       userAgent.start()
       setUa(userAgent)
-      addLog('info', 'SIP User Agent initialized')
+
+      addLog('success', 'SIP User Agent initialized')
 
     } catch (error) {
       addLog('error', `SIP initialization error: ${error.message}`)
     }
   }, [addLog])
+
+  useEffect(() => {
+    register({
+      websocket: 'ws://172.29.175.83:8088/ws',
+      uri: 'sip:1001@172.29.175.83;transport=ws',
+      password: '1234'
+    })
+  }, [])
 
   const unregister = useCallback(() => {
     if (ua) {
@@ -121,30 +155,39 @@ export const SIPProvider = ({ children }) => {
   const makeCall = useCallback((target) => {
     if (ua && isRegistered) {
       const eventHandlers = {
-        progress: (e) => {
+        progress: () => {
           setCallStatus('ringing')
         },
-        confirmed: (e) => {
+
+        confirmed: () => {
           setCallStatus('connected')
           startCallTimer()
         },
-        ended: (e) => {
+
+        ended: () => {
           setCallStatus('ended')
           setCurrentCall(null)
           stopCallTimer()
         },
-        failed: (e) => {
+
+        failed: () => {
           setCallStatus('failed')
           setCurrentCall(null)
         }
       }
 
       const options = {
-        eventHandlers: eventHandlers
+        eventHandlers,
+        mediaConstraints: {
+          audio: true,
+          video: false
+        }
       }
 
       const session = ua.call(target, options)
+
       setCurrentCall(session)
+
       addLog('info', `Initiating call to ${target}`)
     }
   }, [ua, isRegistered, addLog])
@@ -152,9 +195,17 @@ export const SIPProvider = ({ children }) => {
   const answerCall = useCallback(() => {
     if (incomingCall) {
       const session = incomingCall
-      session.answer()
+
+      session.answer({
+        mediaConstraints: {
+          audio: true,
+          video: false
+        }
+      })
+
       setCurrentCall(session)
       setIncomingCall(null)
+
       addLog('info', 'Incoming call answered')
     }
   }, [incomingCall, addLog])
@@ -163,6 +214,7 @@ export const SIPProvider = ({ children }) => {
     if (incomingCall) {
       incomingCall.terminate()
       setIncomingCall(null)
+
       addLog('info', 'Incoming call rejected')
     }
   }, [incomingCall, addLog])
@@ -172,7 +224,9 @@ export const SIPProvider = ({ children }) => {
       currentCall.terminate()
       setCurrentCall(null)
       setCallStatus('idle')
+
       stopCallTimer()
+
       addLog('info', 'Call terminated')
     }
   }, [currentCall, addLog])
@@ -204,23 +258,6 @@ export const SIPProvider = ({ children }) => {
       addLog('info', 'Audio unmuted')
     }
   }, [currentCall, addLog])
-
-  let callTimer = null
-
-  const startCallTimer = () => {
-    setCallDuration(0)
-    callTimer = setInterval(() => {
-      setCallDuration(prev => prev + 1)
-    }, 1000)
-  }
-
-  const stopCallTimer = () => {
-    if (callTimer) {
-      clearInterval(callTimer)
-      callTimer = null
-    }
-    setCallDuration(0)
-  }
 
   const updateRTPMetrics = useCallback((metrics) => {
     setRtpMetrics(prev => ({ ...prev, ...metrics }))
