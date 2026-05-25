@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
 import JsSIP from 'jssip'
+import { useSocket } from './SocketContext'
 
 const SIPContext = createContext()
 
@@ -32,11 +33,21 @@ export const SIPProvider = ({ children }) => {
   // Use ref for call timer so it persists across renders
   const callTimerRef = useRef(null)
   const uaRef        = useRef(null)
+  // Audio element refs
+  const remoteAudioRef = useRef(null)
+  const localAudioRef = useRef(null)
+  // Map sessions to their pc event handlers for cleanup
+  const sessionHandlersRef = useRef(new Map())
+  // Flag when autoplay was blocked and we need a user gesture to resume
+  const autoplayBlockedRef = useRef(false)
+  const resumeListenerRef = useRef(null)
 
   // ── Add SIP Log ──
   const addLog = useCallback((level, message) => {
-    const timestamp = new Date().toLocaleTimeString()
-    setSipLogs(prev => [...prev, { timestamp, level, message }].slice(-100))
+    const now = new Date()
+    const timestamp = now.toISOString()
+    const time = now.toLocaleTimeString()
+    setSipLogs(prev => [...prev, { timestamp, time, level, message }].slice(-100))
   }, [])
 
   // ── Call Timer ──
@@ -65,6 +76,109 @@ export const SIPProvider = ({ children }) => {
     }
   }, [addLog])
 
+  // ── Helpers: attach / cleanup audio for a session's PeerConnection ──
+  const cleanupSessionAudio = useCallback((session) => {
+    try {
+      if (!session) return
+      const handlers = sessionHandlersRef.current.get(session)
+      const pc = session.connection
+      if (handlers && pc) {
+        if (handlers.ontrack) pc.removeEventListener('track', handlers.ontrack)
+        if (handlers.onaddstream) pc.removeEventListener('addstream', handlers.onaddstream)
+      }
+
+      // Clear audio elements if they reference this session's streams
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = null
+      }
+      if (localAudioRef.current) {
+        localAudioRef.current.srcObject = null
+      }
+
+      sessionHandlersRef.current.delete(session)
+    } catch (err) {
+      addLog('warning', `Error cleaning session audio: ${err.message}`)
+    }
+  }, [addLog])
+
+  const tryPlayAudio = useCallback(async (audioEl) => {
+    if (!audioEl) return
+    try {
+      await audioEl.play()
+      autoplayBlockedRef.current = false
+    } catch (err) {
+      autoplayBlockedRef.current = true
+      addLog('warning', 'Autoplay prevented by browser — user gesture required to enable audio')
+      // Install a one-time resume listener on user gesture
+      if (!resumeListenerRef.current) {
+        resumeListenerRef.current = () => {
+          try {
+            audioEl.play().catch(() => {})
+          } finally {
+            window.removeEventListener('click', resumeListenerRef.current)
+            resumeListenerRef.current = null
+          }
+        }
+        window.addEventListener('click', resumeListenerRef.current)
+      }
+    }
+  }, [addLog])
+
+  const setupSessionAudio = useCallback((session) => {
+    if (!session) return
+    // Prevent duplicate setup for same session
+    if (sessionHandlersRef.current.has(session)) return
+
+    const pc = session.connection
+    if (!pc) return
+
+    const ontrack = (ev) => {
+      const stream = (ev.streams && ev.streams[0]) || new MediaStream([ev.track])
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = stream
+        tryPlayAudio(remoteAudioRef.current)
+      }
+    }
+
+    const onaddstream = (ev) => {
+      const stream = ev.stream || ev
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = stream
+        tryPlayAudio(remoteAudioRef.current)
+      }
+    }
+
+    // Attach handlers
+    pc.addEventListener('track', ontrack)
+    pc.addEventListener('addstream', onaddstream)
+
+    // Try to set a local (muted) preview from senders
+    try {
+      if (pc.getSenders) {
+        const senders = pc.getSenders() || []
+        const localTracks = senders.map(s => s.track).filter(Boolean)
+        if (localTracks.length && localAudioRef.current) {
+          localAudioRef.current.muted = true
+          localAudioRef.current.srcObject = new MediaStream(localTracks)
+        }
+      }
+    } catch (err) {
+      // not critical
+    }
+
+    sessionHandlersRef.current.set(session, { ontrack, onaddstream })
+  }, [tryPlayAudio])
+
+  // SIP config state (exposed to UI)
+  const [sipConfig, setSipConfig] = useState(() => {
+    const domain = import.meta.env.VITE_SIP_DOMAIN || ''
+    const ext = import.meta.env.VITE_SIP_EXT || ''
+    const password = import.meta.env.VITE_SIP_PASSWORD || ''
+    const websocket = import.meta.env.VITE_SIP_WS || ''
+    const uri = import.meta.env.VITE_SIP_URI || ''
+    return { websocket, uri, password, domain, ext }
+  })
+
   // ── Register ──
   const register = useCallback((config) => {
     try {
@@ -74,12 +188,13 @@ export const SIPProvider = ({ children }) => {
         uaRef.current = null
       }
 
-      const socket = new JsSIP.WebSocketInterface(config.websocket)
+      const cfg = config || sipConfig
+      const socket = new JsSIP.WebSocketInterface(cfg.websocket)
 
       const configuration = {
         sockets:         [socket],
-        uri:             config.uri,
-        password:        config.password,
+        uri:             cfg.uri,
+        password:        cfg.password,
         register:        true,
         session_timers:  false,
         register_expires: 300,
@@ -131,15 +246,29 @@ export const SIPProvider = ({ children }) => {
           setCallStatus('incoming')
         }
 
-        session.on('progress', () => {
-          addLog('info', 'Remote party ringing...')
-          setCallStatus('ringing')
-        })
+        // Setup audio handlers for this session's PeerConnection
+        // Some browsers create the pc asynchronously; try immediate then listen for peerconnection change
+        try {
+          setupSessionAudio(session)
+        } catch (err) {
+          addLog('warning', `setupSessionAudio error: ${err.message}`)
+        }
 
+        // Also watch for when remote tracks become available after 'confirmed'
         session.on('confirmed', () => {
+          try {
+            setupSessionAudio(session)
+          } catch (err) {
+            addLog('warning', `setupSessionAudio on confirmed: ${err.message}`)
+          }
           addLog('success', 'Call connected — audio stream started')
           setCallStatus('connected')
           startCallTimer()
+        })
+
+        session.on('progress', () => {
+          addLog('info', 'Remote party ringing...')
+          setCallStatus('ringing')
         })
 
         session.on('ended', () => {
@@ -148,6 +277,7 @@ export const SIPProvider = ({ children }) => {
           setCurrentCall(null)
           setIncomingCall(null)
           stopCallTimer()
+          cleanupSessionAudio(session)
         })
 
         session.on('failed', (e) => {
@@ -156,12 +286,21 @@ export const SIPProvider = ({ children }) => {
           setCurrentCall(null)
           setIncomingCall(null)
           stopCallTimer()
+          cleanupSessionAudio(session)
+        })
+
+        // Ensure we cleanup if user terminates locally
+        session.on('terminated', () => {
+          cleanupSessionAudio(session)
         })
       })
 
       userAgent.start()
       uaRef.current = userAgent
       setUa(userAgent)
+
+      // Save last used config
+      setSipConfig(cfg)
 
       addLog('info', 'SIP User Agent initialized')
 
@@ -172,16 +311,63 @@ export const SIPProvider = ({ children }) => {
 
   // ── Auto register on mount ──
   useEffect(() => {
-    register({
-      websocket: 'ws://172.29.175.83:8088/ws',
-      uri:       'sip:1001@172.29.175.83',
-      password:  '1001'
-    })
+    // Read configuration from Vite environment variables (prefix VITE_)
+    const domain = import.meta.env.VITE_SIP_DOMAIN || ''
+    const ext = import.meta.env.VITE_SIP_EXT || ''
+    const password = import.meta.env.VITE_SIP_PASSWORD || ''
+    const websocket = import.meta.env.VITE_SIP_WS || ''
+    const uri = import.meta.env.VITE_SIP_URI || ''
+
+    if (websocket && uri && password) {
+      register({ websocket, uri, password, domain, ext })
+    } else {
+      addLog('warning', 'SIP environment variables are not fully configured. Configure .env or use Settings.')
+    }
 
     return () => {
       unregister()
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Update RTP Metrics ──
+  const updateRTPMetrics = useCallback((metrics) => {
+    setRtpMetrics(prev => ({ ...prev, ...metrics }))
+  }, [])
+
+  // Subscribe to backend socket events to surface server data into SIPContext
+  const { socket } = useSocket()
+
+  useEffect(() => {
+    if (!socket) return
+
+    const onInit = (data) => {
+      if (data.sipLog) {
+        // normalize server sipLog entries if necessary
+        setSipLogs(data.sipLog.map(e => ({ timestamp: e.timestamp || new Date().toISOString(), time: e.timestamp || new Date().toLocaleTimeString(), level: 'info', message: `${e.method} ${e.from} → ${e.to} ${e.detail || ''}` })))
+      }
+    }
+
+    const onSipEvent = (entry) => {
+      const msg = `${entry.method} ${entry.from || ''} → ${entry.to || ''}: ${entry.detail || ''}`
+      addLog('info', msg)
+    }
+
+    const onQuality = (q) => {
+      if (q && q.callId) {
+        updateRTPMetrics({ jitter: q.jitter, packetLoss: q.packetLoss, rtt: q.latency })
+      }
+    }
+
+    socket.on('init', onInit)
+    socket.on('sip_event', onSipEvent)
+    socket.on('quality_update', onQuality)
+
+    return () => {
+      socket.off('init', onInit)
+      socket.off('sip_event', onSipEvent)
+      socket.off('quality_update', onQuality)
+    }
+  }, [socket, addLog, updateRTPMetrics])
 
   // ── Make Call ──
   const makeCall = useCallback((target) => {
@@ -214,10 +400,11 @@ export const SIPProvider = ({ children }) => {
       }
     }
 
-    const session = uaRef.current.call(
-      `sip:${target}@172.29.175.83`,
-      options
-    )
+    const sipTarget = sipConfig.domain
+      ? `sip:${target}@${sipConfig.domain}`
+      : `sip:${target}`
+
+    const session = uaRef.current.call(sipTarget, options)
 
     setCurrentCall(session)
     addLog('info', `Calling extension ${target}...`)
@@ -288,10 +475,6 @@ export const SIPProvider = ({ children }) => {
     addLog('info', 'Microphone unmuted')
   }, [currentCall, addLog])
 
-  // ── Update RTP Metrics ──
-  const updateRTPMetrics = useCallback((metrics) => {
-    setRtpMetrics(prev => ({ ...prev, ...metrics }))
-  }, [])
 
   const value = {
     ua,
@@ -312,11 +495,27 @@ export const SIPProvider = ({ children }) => {
     unholdCall,
     muteAudio,
     unmuteAudio,
+    sipConfig,
+    setSipConfig,
     updateRTPMetrics
   }
 
   return (
     <SIPContext.Provider value={value}>
+      {/* Hidden audio elements for remote and local preview. Kept in provider so they persist across app. */}
+      <audio
+        ref={remoteAudioRef}
+        autoPlay
+        playsInline
+        style={{ display: 'none' }}
+      />
+      <audio
+        ref={localAudioRef}
+        autoPlay
+        playsInline
+        muted
+        style={{ display: 'none' }}
+      />
       {children}
     </SIPContext.Provider>
   )

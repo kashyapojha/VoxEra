@@ -5,12 +5,7 @@ import GlassCard from '../components/UI/GlassCard'
 import { useSIP } from '../context/SIPContext'
 
 const Settings = () => {
-  const { isRegistered, register, unregister } = useSIP()
-  const [sipConfig, setSipConfig] = useState({
-    websocket: 'wss://sip.voipsight.com:8089/ws',
-    uri: 'sip:1001@voipsight.com',
-    password: ''
-  })
+  const { isRegistered, register, unregister, sipConfig, setSipConfig } = useSIP()
 
   const handleSIPRegister = () => {
     register(sipConfig)
@@ -184,7 +179,7 @@ const Settings = () => {
             <h3 className="text-lg font-semibold text-red-400">Danger Zone</h3>
           </div>
           <div className="space-y-4">
-            <button className="w-full py-3 rounded-xl bg-red-500/20 text-red-400 font-semibold hover:bg-red-500/30 transition-colors">
+            <button onClick={() => { unregister(); localStorage.clear(); }} className="w-full py-3 rounded-xl bg-red-500/20 text-red-400 font-semibold hover:bg-red-500/30 transition-colors">
               Sign Out
             </button>
             <button className="w-full py-3 rounded-xl bg-white/5 text-red-400 font-semibold hover:bg-white/10 transition-colors">
@@ -197,6 +192,7 @@ const Settings = () => {
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
+            onClick={() => { /* placeholder: persist settings to localStorage */ localStorage.setItem('voipsight_settings', JSON.stringify({ sipConfig })); }}
             className="px-8 py-3 rounded-xl bg-gradient-primary text-white font-semibold hover:shadow-[0_0_30px_rgba(91,46,255,0.5)] transition-all duration-300 flex items-center gap-2"
           >
             <Save size={20} />

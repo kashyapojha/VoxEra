@@ -27,15 +27,28 @@ A modern, futuristic SIP softphone application with real-time call monitoring da
 
 ## Tech Stack
 
+### Frontend
 - **React 18** - UI framework
-- **Vite** - Build tool and dev server
+- **Vite** - Fast frontend build tool and dev server
 - **Tailwind CSS** - Utility-first styling
-- **Framer Motion** - Animations and transitions
-- **Recharts** - Data visualization charts
-- **Lucide React** - Icon library
-- **Socket.io Client** - Real-time communication
-- **JsSIP** - SIP protocol implementation
-- **React Router** - Client-side routing
+- **Framer Motion** - UI animations and transitions
+- **Recharts** - Charting and analytics visualization
+- **Lucide React** - Icon components
+- **JsSIP** - Browser SIP client for WebRTC calls
+- **Socket.io Client** - Real-time websocket updates
+- **React Router** - SPA navigation
+
+### Backend
+- **Node.js** - JavaScript runtime for API and sockets
+- **Express** - REST API and server middleware
+- **Socket.io** - Real-time event bus and notifications
+- **dotenv** - Environment configuration support
+
+### WebRTC / Audio Handling
+- Proper remote `audio` element attachment via `srcObject`
+- `RTCPeerConnection` `track` and legacy `addstream` handling
+- Autoplay resume support for browser restrictions
+- Call cleanup for stable browser tab-to-tab calling
 
 ## Design System
 
@@ -57,15 +70,22 @@ A modern, futuristic SIP softphone application with real-time call monitoring da
 # Install dependencies
 npm install
 
-# Start development server
+# Copy the example env file before starting
+cp .env.example .env
+# Then edit .env with your SIP and backend values.
+
+# Start backend and frontend in separate terminals
+# Backend (server and socket API)
+cd backend
+npm install
+node server.js
+
+# Frontend
+cd ..
 npm run dev
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
 ```
+
+> Note: `.env` is ignored by git and should contain only local secrets or SIP credentials. Do not commit `.env`.
 
 ## Project Structure
 

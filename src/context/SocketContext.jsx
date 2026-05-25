@@ -17,8 +17,9 @@ export const SocketProvider = ({ children }) => {
   const [lastMessage, setLastMessage] = useState(null)
 
   useEffect(() => {
-    // Mock socket connection - replace with actual server URL
-    const socketInstance = io('http://localhost:5000', {
+    // Use Vite env or default to localhost
+    const backend = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'
+    const socketInstance = io(backend, {
       autoConnect: true,
       transports: ['websocket']
     })
@@ -70,6 +71,9 @@ export const SocketProvider = ({ children }) => {
     disconnect,
     emit
   }
+
+  // expose backend url for other components
+  value.backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'
 
   return (
     <SocketContext.Provider value={value}>

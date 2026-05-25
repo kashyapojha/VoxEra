@@ -4,6 +4,8 @@ const { Server } = require("socket.io");
 const cors       = require("cors");
 const path       = require("path");
 
+require('dotenv').config()
+
 // ── APP SETUP ──
 const app    = express();
 const server = http.createServer(app);

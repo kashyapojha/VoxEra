@@ -57,7 +57,7 @@ const SIPLogs = () => {
               <div className="flex-1 min-w-0">
                 <p className={`text-sm ${getLevelColor(log.level)}`}>{log.message}</p>
                 <p className="text-xs text-gray-500 mt-1">
-                  {new Date(log.timestamp).toLocaleTimeString()}
+                  {log.time || (log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : '')}
                 </p>
               </div>
             </div>
