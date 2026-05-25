@@ -175,7 +175,7 @@ export const SIPProvider = ({ children }) => {
     register({
       websocket: 'ws://172.29.175.83:8088/ws',
       uri:       'sip:1001@172.29.175.83',
-      password:  '1234'
+      password:  '1001'
     })
 
     return () => {
