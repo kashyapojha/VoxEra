@@ -3,24 +3,56 @@ import { BarChart, PieChart } from 'lucide-react'
 import GlassCard from '../components/UI/GlassCard'
 import RealtimeChart from '../components/Analytics/RealtimeChart'
 import CallHistory from '../components/Analytics/CallHistory'
-import { useSIP } from '../context/SIPContext'
+import { useEffect, useState } from 'react'
+import { useSocket } from '../context/SocketContext'
 
 const Analytics = () => {
-  const { sipLogs, isRegistered } = useSIP()
+  const [calls, setCalls] = useState([])
+  const { socket, backendUrl } = useSocket()
 
-  const completedCalls = sipLogs.filter(log => log.level === 'success').length
-  const failedCalls = sipLogs.filter(log => log.level === 'error').length
-  const warningCalls = sipLogs.filter(log => log.level === 'warning').length
-  const totalCalls = completedCalls + failedCalls + warningCalls
+  useEffect(() => {
+    let mounted = true
+    fetch(`${backendUrl.replace(/\/$/, '')}/api/calls`)
+      .then(res => res.json())
+      .then(data => {
+        if (!mounted) return
+        if (Array.isArray(data)) setCalls(data.map(c => ({ ...c, duration: Number(c.duration) || 0, timestamp: c.timestamp ? new Date(c.timestamp) : new Date() })))
+      }).catch(() => {})
+
+    const onUpdate = (payload) => {
+      if (!payload) return
+      if (Array.isArray(payload)) setCalls(payload.map(c => ({ ...c, duration: Number(c.duration) || 0, timestamp: c.timestamp ? new Date(c.timestamp) : new Date() })))
+      else setCalls(prev => [{ ...payload, duration: Number(payload.duration) || 0, timestamp: payload.timestamp ? new Date(payload.timestamp) : new Date() }, ...prev])
+    }
+
+    if (socket) socket.on('call_history_update', onUpdate)
+
+    return () => {
+      mounted = false
+      if (socket) socket.off('call_history_update', onUpdate)
+    }
+  }, [backendUrl, socket])
+
+  const completedCalls = calls.filter(c => c.status === 'completed').length
+  const failedCalls = calls.filter(c => c.status === 'failed').length
+  const missedCalls = calls.filter(c => c.status === 'missed' || c.status === 'no-answer').length
+  const inProgress = calls.filter(c => c.status === 'in-progress' || c.status === 'connected').length
+  const totalCalls = calls.length
 
   const callStats = [
     { label: 'Completed', value: completedCalls, color: 'bg-green-500' },
-    { label: 'Missed', value: warningCalls, color: 'bg-red-500' },
+    { label: 'Missed', value: missedCalls, color: 'bg-red-500' },
     { label: 'Failed', value: failedCalls, color: 'bg-orange-500' },
-    { label: 'In Progress', value: 0, color: 'bg-blue-500' }
+    { label: 'In Progress', value: inProgress, color: 'bg-blue-500' }
   ]
 
-  const topCallers = []
+  // Top callers
+  const callersMap = {}
+  calls.forEach(c => {
+    const caller = c.caller || c.from || 'Unknown'
+    callersMap[caller] = (callersMap[caller] || 0) + 1
+  })
+  const topCallers = Object.entries(callersMap).sort((a,b) => b[1]-a[1]).slice(0,5).map(([name,calls]) => ({ name, calls }))
 
   return (
     <motion.div
@@ -97,39 +129,7 @@ const Analytics = () => {
         </GlassCard>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <RealtimeChart />
-        <GlassCard>
-          <div className="flex items-center gap-2 mb-6">
-            <BarChart size={20} className="text-accent" />
-            <h3 className="text-lg font-semibold">Weekly Overview</h3>
-          </div>
-          {!isRegistered ? (
-            <div className="flex flex-col items-center justify-center h-48 text-gray-500">
-              <BarChart size={48} className="mb-2 opacity-50" />
-              <p>No data available</p>
-              <p className="text-sm mt-1">Connect to SIP server to see weekly overview</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, index) => (
-                <div key={day} className="flex items-center gap-4">
-                  <span className="text-xs text-gray-400 w-8">{day}</span>
-                  <div className="flex-1 h-8 bg-white/5 rounded-lg overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: '0%' }}
-                      transition={{ duration: 0.8, delay: index * 0.1 }}
-                      className="h-full bg-gradient-primary rounded-lg"
-                    />
-                  </div>
-                  <span className="text-xs text-gray-400 w-12 text-right">0</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </GlassCard>
-      </div>
+  
 
       <CallHistory />
     </motion.div>

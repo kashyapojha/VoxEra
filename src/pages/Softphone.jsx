@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Phone, Settings, User } from 'lucide-react'
+import { User } from 'lucide-react'
 import GlassCard from '../components/UI/GlassCard'
 import DialPad from '../components/Softphone/DialPad'
 import CallControls from '../components/Softphone/CallControls'
@@ -9,18 +9,29 @@ import IncomingCallModal from '../components/Softphone/IncomingCallModal'
 import { useSIP } from '../context/SIPContext'
 
 const Softphone = () => {
-  const { callStatus, callDuration, makeCall, hangupCall, muteAudio, unmuteAudio, holdCall, unholdCall, isRegistered } = useSIP()
-  const { sipConfig } = useSIP()
-  const [isMuted, setIsMuted] = useState(false)
+  const {
+    callStatus,
+    callDuration,
+    makeCall,
+    hangupCall,
+    muteAudio,
+    unmuteAudio,
+    holdCall,
+    unholdCall,
+    isRegistered,
+    sipConfig
+  } = useSIP()
+
+  const [isMuted,  setIsMuted]  = useState(false)
   const [isOnHold, setIsOnHold] = useState(false)
-  const [autoAnswer, setAutoAnswer] = useState(() => JSON.parse(localStorage.getItem('autoAnswer') || 'false'))
-  const [recordCalls, setRecordCalls] = useState(() => JSON.parse(localStorage.getItem('recordCalls') || 'false'))
-  const [dnd, setDnd] = useState(() => JSON.parse(localStorage.getItem('dnd') || 'false'))
+
+  // Extract extension number from SIP URI — sip:1001@host → 1001
+  const extension = sipConfig?.uri
+    ? sipConfig.uri.replace('sip:', '').split('@')[0]
+    : '—'
 
   const handleCall = (number) => {
-    if (isRegistered) {
-      makeCall(number)
-    }
+    if (isRegistered && number) makeCall(number)
   }
 
   const handleHangup = () => {
@@ -30,24 +41,16 @@ const Softphone = () => {
   }
 
   const handleMute = () => {
-    if (isMuted) {
-      unmuteAudio()
-      setIsMuted(false)
-    } else {
-      muteAudio()
-      setIsMuted(true)
-    }
+    if (isMuted) { unmuteAudio(); setIsMuted(false) }
+    else         { muteAudio();   setIsMuted(true)  }
   }
 
   const handleHold = () => {
-    if (isOnHold) {
-      unholdCall()
-      setIsOnHold(false)
-    } else {
-      holdCall()
-      setIsOnHold(true)
-    }
+    if (isOnHold) { unholdCall(); setIsOnHold(false) }
+    else          { holdCall();   setIsOnHold(true)  }
   }
+
+  const isInCall = callStatus !== 'idle' && callStatus !== 'ended'
 
   return (
     <>
@@ -65,22 +68,29 @@ const Softphone = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          {/* ── DIALPAD PANEL ── */}
           <GlassCard className="flex flex-col items-center justify-center p-8">
+
+            {/* Registration status */}
             <div className="flex items-center gap-2 mb-6">
-              <div className={`w-3 h-3 rounded-full ${isRegistered ? 'bg-green-500' : 'bg-red-500'}`} />
+              <div className={`w-3 h-3 rounded-full animate-pulse ${isRegistered ? 'bg-green-500' : 'bg-red-500'}`} />
               <span className="text-sm text-gray-400">
-                {isRegistered ? 'SIP Registered' : 'Not Registered'}
+                {isRegistered ? 'SIP Registered' : 'Not Registered — go to Settings'}
               </span>
             </div>
 
-            {callStatus !== 'idle' && callStatus !== 'ended' && (
+            {/* Call timer — only during active call */}
+            {isInCall && (
               <CallTimer callStatus={callStatus} callDuration={callDuration} />
             )}
 
-            <DialPad onCall={handleCall} />
+            {/* Dialpad */}
+            <DialPad onCall={handleCall} disabled={!isRegistered} />
 
-            {callStatus !== 'idle' && (
-              <div className="mt-8">
+            {/* Call controls — only during active call */}
+            {isInCall && (
+              <div className="mt-8 w-full">
                 <CallControls
                   callStatus={callStatus}
                   onHangup={handleHangup}
@@ -95,43 +105,8 @@ const Softphone = () => {
             )}
           </GlassCard>
 
+          {/* ── PROFILE PANEL ── */}
           <div className="space-y-6">
-            <GlassCard>
-              <div className="flex items-center gap-2 mb-4">
-                <Settings size={20} className="text-accent" />
-                <h3 className="text-lg font-semibold">Quick Settings</h3>
-              </div>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-white/5">
-                  <span className="text-sm text-gray-300">Auto-answer calls</span>
-                  <div
-                    onClick={() => { setAutoAnswer(v => { localStorage.setItem('autoAnswer', JSON.stringify(!v)); return !v }) }}
-                    className={`w-12 h-6 rounded-full relative cursor-pointer transition-colors ${autoAnswer ? 'bg-gradient-primary' : 'bg-white/10'}`}
-                  >
-                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${autoAnswer ? 'right-1' : 'left-1'}`} />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-white/5">
-                  <span className="text-sm text-gray-300">Call recording</span>
-                  <div
-                    onClick={() => { setRecordCalls(v => { localStorage.setItem('recordCalls', JSON.stringify(!v)); return !v }) }}
-                    className={`w-12 h-6 rounded-full relative cursor-pointer transition-colors ${recordCalls ? 'bg-gradient-primary' : 'bg-white/10'}`}
-                  >
-                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${recordCalls ? 'right-1' : 'left-1'}`} />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-white/5">
-                  <span className="text-sm text-gray-300">Do not disturb</span>
-                  <div
-                    onClick={() => { setDnd(v => { localStorage.setItem('dnd', JSON.stringify(!v)); return !v }) }}
-                    className={`w-12 h-6 rounded-full relative cursor-pointer transition-colors ${dnd ? 'bg-gradient-primary' : 'bg-white/10'}`}
-                  >
-                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${dnd ? 'right-1' : 'left-1'}`} />
-                  </div>
-                </div>
-              </div>
-            </GlassCard>
-
             <GlassCard>
               <div className="flex items-center gap-2 mb-4">
                 <User size={20} className="text-accent" />
@@ -140,19 +115,47 @@ const Softphone = () => {
               <div className="space-y-3">
                 <div className="p-3 rounded-lg bg-white/5">
                   <p className="text-xs text-gray-400 mb-1">Extension</p>
-                  <p className="font-semibold">{sipConfig?.ext || '1001'}</p>
+                  <p className="font-semibold font-mono text-lg">{extension}</p>
                 </div>
                 <div className="p-3 rounded-lg bg-white/5">
                   <p className="text-xs text-gray-400 mb-1">SIP URI</p>
-                  <p className="font-semibold">{sipConfig?.uri || 'sip:your.ext@domain.com'}</p>
+                  <p className="font-semibold text-sm break-all">{sipConfig?.uri || '—'}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-white/5">
+                  <p className="text-xs text-gray-400 mb-1">WebSocket</p>
+                  <p className="font-semibold text-sm break-all">{sipConfig?.websocket || '—'}</p>
                 </div>
                 <div className="p-3 rounded-lg bg-white/5">
                   <p className="text-xs text-gray-400 mb-1">Status</p>
-                  <p className={`font-semibold ${isRegistered ? 'text-green-400' : 'text-yellow-400'}`}>{isRegistered ? 'Online' : 'Offline'}</p>
+                  <p className={`font-semibold ${isRegistered ? 'text-green-400' : 'text-red-400'}`}>
+                    {isRegistered ? 'Online' : 'Offline'}
+                  </p>
+                </div>
+                <div className="p-3 rounded-lg bg-white/5">
+                  <p className="text-xs text-gray-400 mb-1">Call State</p>
+                  <p className="font-semibold capitalize text-blue-400">{callStatus}</p>
                 </div>
               </div>
             </GlassCard>
+
+            {/* How to call info box */}
+            {!isRegistered && (
+              <GlassCard>
+                <p className="text-sm text-gray-400 leading-relaxed">
+                  To make calls, go to <span className="text-white font-semibold">Settings</span> and register your SIP extension first.
+                </p>
+              </GlassCard>
+            )}
+
+            {isRegistered && !isInCall && (
+              <GlassCard>
+                <p className="text-sm text-gray-400 leading-relaxed">
+                  Enter an extension number on the dialpad and press the call button to start a call.
+                </p>
+              </GlassCard>
+            )}
           </div>
+
         </div>
       </motion.div>
     </>

@@ -1,9 +1,36 @@
 import { Phone, PhoneOff, Clock, User } from 'lucide-react'
 import GlassCard from '../UI/GlassCard'
 import { useSIP } from '../../context/SIPContext'
+import { useSocket } from '../../context/SocketContext'
+import { useEffect, useState } from 'react'
 
 const ActiveCalls = () => {
   const { currentCall, incomingCall, callDuration, callStatus } = useSIP()
+  const { socket, backendUrl } = useSocket()
+  const [activeCalls, setActiveCalls] = useState([])
+
+  useEffect(() => {
+    // fetch initial active calls
+    let mounted = true
+    fetch(`${backendUrl.replace(/\/$/, '')}/api/active-calls`)
+      .then(res => res.json())
+      .then(data => {
+        if (!mounted) return
+        if (Array.isArray(data)) setActiveCalls(data)
+      })
+      .catch(() => {})
+
+    const onActive = (payload) => {
+      if (payload && Array.isArray(payload)) setActiveCalls(payload)
+    }
+
+    if (socket) socket.on('active_calls_update', onActive)
+
+    return () => {
+      mounted = false
+      if (socket) socket.off('active_calls_update', onActive)
+    }
+  }, [socket, backendUrl])
 
   const formatDuration = (seconds) => {
     const mins = Math.floor(seconds / 60)
@@ -28,24 +55,15 @@ const ActiveCalls = () => {
     return direction === 'inbound' ? 'text-blue-400' : 'text-purple-400'
   }
 
-  const activeCalls = []
+  // Merge local activeCalls with current session state for accurate UI
+  const mergedCalls = [...activeCalls]
   if (currentCall) {
-    activeCalls.push({
-      id: 1,
-      caller: currentCall.remote_identity?.uri?.user || 'Unknown',
-      duration: callDuration,
-      status: callStatus,
-      direction: 'outbound'
-    })
+    const found = mergedCalls.find(c => c.id === 'local')
+    if (!found) mergedCalls.unshift({ id: 'local', caller: currentCall.remote_identity?.uri?.user || 'Local', duration: callDuration || 0, status: callStatus || 'connected', direction: 'outbound' })
   }
   if (incomingCall) {
-    activeCalls.push({
-      id: 2,
-      caller: incomingCall.remote_identity?.uri?.user || 'Unknown',
-      duration: 0,
-      status: 'ringing',
-      direction: 'inbound'
-    })
+    const found = mergedCalls.find(c => c.id === 'incoming')
+    if (!found) mergedCalls.unshift({ id: 'incoming', caller: incomingCall.remote_identity?.uri?.user || 'Unknown', duration: 0, status: 'ringing', direction: 'inbound' })
   }
 
   return (
@@ -55,17 +73,17 @@ const ActiveCalls = () => {
           <Phone size={20} className="text-accent" />
           <h3 className="text-lg font-semibold">Active Calls</h3>
         </div>
-        <span className="text-sm text-gray-400">{activeCalls.length} active</span>
+        <span className="text-sm text-gray-400">{mergedCalls.length} active</span>
       </div>
 
       <div className="space-y-3">
-        {activeCalls.length === 0 ? (
+        {mergedCalls.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-gray-500">
             <Phone size={48} className="mb-2 opacity-50" />
             <p>No active calls</p>
           </div>
         ) : (
-          activeCalls.map((call) => (
+          mergedCalls.map((call) => (
             <div
               key={call.id}
               className="p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"

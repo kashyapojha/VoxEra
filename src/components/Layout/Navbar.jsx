@@ -3,11 +3,13 @@ import { Phone, BarChart, Settings, LogOut, Menu, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
+import { useSIP } from '../../context/SIPContext'
 
 const Navbar = ({ onMenuClick, isMobileMenuOpen }) => {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, logout } = useAuth()
+  const { isRegistered } = useSIP()
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
 
   const navItems = [
@@ -39,7 +41,12 @@ const Navbar = ({ onMenuClick, isMobileMenuOpen }) => {
             <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center">
               <Phone className="text-white" size={20} />
             </div>
-            <span className="text-xl font-bold gradient-text">VoIPSight</span>
+            <div className="flex items-center gap-3">
+              <span className="text-xl font-bold gradient-text">VoIPSight</span>
+              <span className={`text-sm px-2 py-1 rounded-full ${isRegistered ? 'bg-green-500/20 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                {isRegistered ? 'Online' : 'Offline'}
+              </span>
+            </div>
           </Link>
         </div>
 

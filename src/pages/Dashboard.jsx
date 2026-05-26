@@ -1,55 +1,73 @@
 import { motion } from 'framer-motion'
-import { Phone, Clock, TrendingUp, Users, AlertCircle, BarChart } from 'lucide-react'
+import { Phone, Clock, Users, TrendingUp } from 'lucide-react'
 import GlassCard from '../components/UI/GlassCard'
 import ActiveCalls from '../components/Monitoring/ActiveCalls'
 import NetworkStatus from '../components/Monitoring/NetworkStatus'
 import RealtimeChart from '../components/Analytics/RealtimeChart'
 import SIPLogs from '../components/Monitoring/SIPLogs'
 import { useSIP } from '../context/SIPContext'
+import { useSocket } from '../context/SocketContext'
+import { useEffect, useState } from 'react'
 
 const Dashboard = () => {
-  const { sipLogs, currentCall, isRegistered, callDuration } = useSIP()
+  const { isRegistered, currentCall, callDuration, sipLogs } = useSIP()
+  const { socket, backendUrl } = useSocket()
+  const [statsBackend, setStatsBackend] = useState({ totalCalls: 0 })
+
+  useEffect(() => {
+    let mounted = true
+    fetch(`${backendUrl.replace(/\/$/, '')}/api/stats`)
+      .then(res => res.json())
+      .then(data => { if (!mounted) return; setStatsBackend(data || { totalCalls: 0 }) })
+      .catch(() => {})
+
+    const onStats = (payload) => {
+      if (payload) setStatsBackend(prev => ({ ...prev, ...payload }))
+    }
+    if (socket) socket.on('stats_update', onStats)
+    return () => { mounted = false; if (socket) socket.off('stats_update', onStats) }
+  }, [backendUrl, socket])
 
   const formatDuration = (seconds) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0')
+    const s = (seconds % 60).toString().padStart(2, '0')
+    return `${m}:${s}`
   }
 
-  const completedCalls = sipLogs.filter(log => log.level === 'success').length
-  const failedCalls = sipLogs.filter(log => log.level === 'error').length
-  const totalCalls = completedCalls + failedCalls
-  const successRate = totalCalls > 0 ? ((completedCalls / totalCalls) * 100).toFixed(1) : '0.0'
+  const completedCalls = sipLogs.filter(l => l.level === 'success').length
+  const failedCalls    = sipLogs.filter(l => l.level === 'error').length
+  const totalCalls     = statsBackend.totalCalls || (completedCalls + failedCalls)
+  const successRate    = totalCalls > 0 ? ((completedCalls / totalCalls) * 100).toFixed(1) : '0.0'
 
   const stats = [
     {
       label: 'Total Calls',
       value: totalCalls.toString(),
-      change: '0%',
       icon: Phone,
-      color: 'text-blue-400'
+      color: 'text-blue-400',
+      bg: 'bg-blue-500/10'
     },
     {
-      label: 'Current Duration',
+      label: 'Call Duration',
       value: currentCall ? formatDuration(callDuration) : '--:--',
-      change: '0%',
       icon: Clock,
-      color: 'text-green-400'
+      color: 'text-green-400',
+      bg: 'bg-green-500/10'
     },
     {
       label: 'SIP Status',
       value: isRegistered ? 'Online' : 'Offline',
-      change: isRegistered ? '+100%' : '-100%',
       icon: Users,
-      color: isRegistered ? 'text-purple-400' : 'text-red-400'
+      color: isRegistered ? 'text-purple-400' : 'text-red-400',
+      bg: isRegistered ? 'bg-purple-500/10' : 'bg-red-500/10'
     },
     {
       label: 'Success Rate',
       value: `${successRate}%`,
-      change: '0%',
       icon: TrendingUp,
-      color: 'text-accent'
-    }
+      color: 'text-accent',
+      bg: 'bg-accent/10'
+    },
   ]
 
   return (
@@ -63,18 +81,14 @@ const Dashboard = () => {
         <p className="text-gray-400">Monitor your VoIP infrastructure in real-time</p>
       </div>
 
+      {/* STAT CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {stats.map((stat, index) => {
           const Icon = stat.icon
           return (
             <GlassCard key={index} hover glow>
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl bg-gradient-primary/20 flex items-center justify-center">
-                  <Icon size={24} className={stat.color} />
-                </div>
-                <span className={`text-sm font-semibold ${stat.change.startsWith('+') ? 'text-green-400' : 'text-gray-400'}`}>
-                  {stat.change}
-                </span>
+              <div className={`w-12 h-12 rounded-xl ${stat.bg} flex items-center justify-center mb-4`}>
+                <Icon size={24} className={stat.color} />
               </div>
               <p className="text-2xl font-bold text-white mb-1">{stat.value}</p>
               <p className="text-gray-400 text-sm">{stat.label}</p>
@@ -83,11 +97,13 @@ const Dashboard = () => {
         })}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      {/* CHART + ACTIVE CALLS */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <RealtimeChart />
         <ActiveCalls />
       </div>
 
+      {/* NETWORK + SIP LOGS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <NetworkStatus />
         <SIPLogs />

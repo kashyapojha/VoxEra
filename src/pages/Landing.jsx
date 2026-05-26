@@ -1,36 +1,32 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Phone, Shield, Activity, BarChart, ArrowRight, Zap, Lock, Globe } from 'lucide-react'
+import { Phone, ArrowRight } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useSocket } from '../context/SocketContext'
 
 const Landing = () => {
-  const features = [
-    {
-      icon: Phone,
-      title: 'SIP Softphone',
-      description: 'Make and receive calls with full SIP protocol support'
-    },
-    {
-      icon: Shield,
-      title: 'Secure & Encrypted',
-      description: 'Enterprise-grade security with end-to-end encryption'
-    },
-    {
-      icon: Activity,
-      title: 'Real-time Monitoring',
-      description: 'Live call monitoring with detailed metrics'
-    },
-    {
-      icon: BarChart,
-      title: 'Advanced Analytics',
-      description: 'Comprehensive call analytics and reporting'
+  const { backendUrl, socket } = useSocket()
+  const [callsProcessed, setCallsProcessed] = useState('0')
+
+  useEffect(() => {
+    let mounted = true
+    fetch(`${backendUrl.replace(/\/$/, '')}/api/stats`)
+      .then(res => res.json())
+      .then(data => { if (!mounted) return; setCallsProcessed(String(data?.totalCalls || 0)) })
+      .catch(() => {})
+
+    const onStats = (p) => {
+      if (p && mounted && p.totalCalls !== undefined) setCallsProcessed(String(p.totalCalls))
     }
-  ]
+    if (socket) socket.on('stats_update', onStats)
+    return () => { mounted = false; if (socket) socket.off('stats_update', onStats) }
+  }, [backendUrl, socket])
 
   const stats = [
-    { value: '', label: 'Uptime' },
-    { value: '', label: 'Calls Processed' },
-    { value: '', label: 'Avg Latency' },
-    { value: '', label: 'Support' }
+    { value: '99.9%',          label: 'Uptime' },
+    { value: callsProcessed,   label: 'Calls Processed' },
+    { value: '45ms',           label: 'Avg Latency' },
+    { value: '24/7',           label: 'Support' },
   ]
 
   return (
@@ -39,6 +35,7 @@ const Landing = () => {
       <div className="bg-blob bg-blob-2" />
       <div className="bg-blob bg-blob-3" />
 
+      {/* NAV */}
       <nav className="relative z-10 glass border-b border-white/10 px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -61,6 +58,7 @@ const Landing = () => {
         </div>
       </nav>
 
+      {/* HERO */}
       <main className="relative z-10">
         <section className="max-w-7xl mx-auto px-6 py-20 lg:py-32">
           <motion.div
@@ -71,12 +69,11 @@ const Landing = () => {
           >
             <h1 className="text-5xl lg:text-7xl font-bold mb-6">
               <span className="gradient-text">Next-Gen</span> SIP Softphone
-              <br />
-              & Call Monitoring
+              <br />& Call Monitoring
             </h1>
             <p className="text-xl text-gray-400 mb-8 max-w-2xl mx-auto">
-              Enterprise-grade VoIP solution with real-time monitoring, advanced analytics,
-              and seamless integration for modern communication needs.
+              Enterprise-grade VoIP solution with real-time monitoring,
+              advanced analytics, and seamless integration for modern communication needs.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
@@ -95,6 +92,7 @@ const Landing = () => {
             </div>
           </motion.div>
 
+          {/* STATS */}
           <motion.div
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
@@ -112,70 +110,9 @@ const Landing = () => {
             ))}
           </motion.div>
         </section>
-
-        <section className="max-w-7xl mx-auto px-6 py-20">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
-          >
-            <h2 className="text-4xl lg:text-5xl font-bold mb-4">
-              Powerful <span className="gradient-text">Features</span>
-            </h2>
-            <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-              Everything you need for professional VoIP communication and monitoring
-            </p>
-          </motion.div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {features.map((feature, index) => {
-              const Icon = feature.icon
-              return (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: index * 0.1 }}
-                  className="glass-card hover:scale-105 transition-transform duration-300"
-                >
-                  <div className="w-12 h-12 rounded-xl bg-gradient-primary/20 flex items-center justify-center mb-4">
-                    <Icon size={24} className="text-accent" />
-                  </div>
-                  <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
-                  <p className="text-gray-400">{feature.description}</p>
-                </motion.div>
-              )
-            })}
-          </div>
-        </section>
-
-        <section className="max-w-7xl mx-auto px-6 py-20">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="glass-card text-center"
-          >
-            <div className="flex items-center justify-center gap-4 mb-6">
-              <Zap size={32} className="text-accent" />
-              <h2 className="text-3xl lg:text-4xl font-bold">Ready to Get Started?</h2>
-            </div>
-            <p className="text-gray-400 text-lg mb-8 max-w-2xl mx-auto">
-              Join thousands of organizations using VoIPSight for their communication needs
-            </p>
-            <Link
-              to="/dashboard"
-              className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-gradient-primary text-white font-semibold text-lg hover:shadow-[0_0_40px_rgba(91,46,255,0.6)] transition-all duration-300"
-            >
-              Start Free Trial
-              <ArrowRight size={20} />
-            </Link>
-          </motion.div>
-        </section>
       </main>
 
+      {/* FOOTER */}
       <footer className="relative z-10 glass border-t border-white/10 px-6 py-8">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -184,9 +121,7 @@ const Landing = () => {
             </div>
             <span className="font-bold gradient-text">VoIPSight</span>
           </div>
-          <p className="text-gray-400 text-sm">
-            © 2026 VoIPSight. All rights reserved.
-          </p>
+          <p className="text-gray-400 text-sm">© 2026 VoIPSight. All rights reserved.</p>
           <div className="flex items-center gap-6">
             <a href="#" className="text-gray-400 hover:text-white transition-colors text-sm">Privacy</a>
             <a href="#" className="text-gray-400 hover:text-white transition-colors text-sm">Terms</a>

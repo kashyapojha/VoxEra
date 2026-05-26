@@ -1,11 +1,48 @@
 import { History, PhoneIncoming, PhoneOutgoing, Clock, Calendar } from 'lucide-react'
 import GlassCard from '../UI/GlassCard'
 import { useSIP } from '../../context/SIPContext'
+import { useSocket } from '../../context/SocketContext'
+import { useEffect, useState } from 'react'
 
 const CallHistory = () => {
   const { sipLogs } = useSIP()
-  
-  const callHistory = []
+  const { socket, backendUrl } = useSocket()
+  const [callHistory, setCallHistory] = useState([])
+
+  useEffect(() => {
+    let mounted = true
+    fetch(`${backendUrl.replace(/\/$/, '')}/api/calls`)
+      .then(res => res.json())
+      .then(data => {
+        if (!mounted) return
+        if (Array.isArray(data)) {
+          // normalize timestamps and durations
+          const normalized = data.map((c, i) => ({
+            id: c.id ?? i,
+            caller: c.caller || c.from || 'Unknown',
+            direction: c.direction || 'outbound',
+            status: c.status || 'completed',
+            duration: Number(c.duration) || 0,
+            timestamp: c.timestamp ? new Date(c.timestamp) : new Date()
+          }))
+          setCallHistory(normalized)
+        }
+      }).catch(() => {})
+
+    const onUpdate = (payload) => {
+      if (!payload) return
+      // payload could be an array or single entry
+      if (Array.isArray(payload)) setCallHistory(payload.map((c, i) => ({ id: c.id ?? i, caller: c.caller || c.from || 'Unknown', direction: c.direction || 'outbound', status: c.status || 'completed', duration: Number(c.duration) || 0, timestamp: c.timestamp ? new Date(c.timestamp) : new Date() })))
+      else setCallHistory(prev => [{ id: payload.id ?? Date.now(), caller: payload.caller || payload.from || 'Unknown', direction: payload.direction || 'outbound', status: payload.status || 'completed', duration: Number(payload.duration) || 0, timestamp: payload.timestamp ? new Date(payload.timestamp) : new Date() }, ...prev])
+    }
+
+    if (socket) socket.on('call_history_update', onUpdate)
+
+    return () => {
+      mounted = false
+      if (socket) socket.off('call_history_update', onUpdate)
+    }
+  }, [socket, backendUrl])
 
   const formatDuration = (seconds) => {
     const mins = Math.floor(seconds / 60)

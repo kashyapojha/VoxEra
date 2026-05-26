@@ -1,9 +1,17 @@
 import { useSIP } from '../../context/SIPContext'
 import { FileText, AlertCircle, CheckCircle, Info, X } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import GlassCard from '../UI/GlassCard'
 
 const SIPLogs = () => {
   const { sipLogs } = useSIP()
+  const listRef = useRef(null)
+
+  useEffect(() => {
+    if (listRef.current) {
+      listRef.current.scrollTop = listRef.current.scrollHeight
+    }
+  }, [sipLogs])
 
   const getLevelIcon = (level) => {
     switch (level) {
@@ -41,7 +49,7 @@ const SIPLogs = () => {
         <span className="text-sm text-gray-400">{sipLogs.length} entries</span>
       </div>
 
-      <div className="h-96 overflow-y-auto scrollbar-hide space-y-2">
+      <div ref={listRef} className="h-96 overflow-y-auto scrollbar-hide space-y-2">
         {sipLogs.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500">
             <FileText size={48} className="mb-2 opacity-50" />

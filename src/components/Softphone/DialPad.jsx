@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Phone, X, Delete } from 'lucide-react'
 
-const DialPad = ({ onCall, onClear }) => {
+const DialPad = ({ onCall, onClear, disabled }) => {
   const [number, setNumber] = useState('')
 
   const buttons = [
@@ -21,6 +21,7 @@ const DialPad = ({ onCall, onClear }) => {
   ]
 
   const handlePress = (num) => {
+    if (disabled) return
     setNumber(prev => prev + num)
   }
 
@@ -29,11 +30,13 @@ const DialPad = ({ onCall, onClear }) => {
   }
 
   const handleClear = () => {
+    if (disabled) return
     setNumber('')
     if (onClear) onClear()
   }
 
   const handleCall = () => {
+    if (disabled) return
     if (number && onCall) {
       onCall(number)
     }
@@ -69,7 +72,8 @@ const DialPad = ({ onCall, onClear }) => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05 }}
-            className="w-20 h-20 rounded-2xl glass flex flex-col items-center justify-center hover:bg-white/10 transition-all duration-300 neon-glow-hover"
+            disabled={disabled}
+            className={`w-20 h-20 rounded-2xl glass flex flex-col items-center justify-center transition-all duration-300 neon-glow-hover ${disabled ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white/10'}`}
           >
             <span className="text-2xl font-semibold">{btn.num}</span>
             {btn.letters && (
@@ -84,7 +88,8 @@ const DialPad = ({ onCall, onClear }) => {
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={handleClear}
-          className="w-16 h-16 rounded-full glass flex items-center justify-center hover:bg-white/10 transition-all duration-300"
+          disabled={disabled}
+          className={`w-16 h-16 rounded-full glass flex items-center justify-center transition-all duration-300 ${disabled ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white/10'}`}
         >
           <X size={24} className="text-gray-400" />
         </motion.button>
@@ -93,11 +98,11 @@ const DialPad = ({ onCall, onClear }) => {
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={handleCall}
-          disabled={!number}
+          disabled={!number || disabled}
           className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 ${
-            number
-              ? 'bg-gradient-primary neon-glow hover:shadow-[0_0_40px_rgba(91,46,255,0.6)]'
-              : 'bg-white/5 cursor-not-allowed'
+            (!number || disabled)
+              ? 'bg-white/5 cursor-not-allowed opacity-60'
+              : 'bg-gradient-primary neon-glow hover:shadow-[0_0_40px_rgba(91,46,255,0.6)]'
           }`}
         >
           <Phone size={28} className="text-white" />

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { User, Bell, Shield, Phone, Globe, Save, LogOut } from 'lucide-react'
 import GlassCard from '../components/UI/GlassCard'
@@ -6,6 +7,19 @@ import { useSIP } from '../context/SIPContext'
 
 const Settings = () => {
   const { isRegistered, register, unregister, sipConfig, setSipConfig } = useSIP()
+
+  // Load saved settings from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('voipsight_settings')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed?.sipConfig) setSipConfig(prev => ({ ...prev, ...parsed.sipConfig }))
+      }
+    } catch (err) {
+      // ignore parse errors
+    }
+  }, [setSipConfig])
 
   const handleSIPRegister = () => {
     register(sipConfig)

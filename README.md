@@ -260,3 +260,51 @@ npm run build
 ## Support
 
 For issues and questions, please refer to the documentation or contact the development team.
+
+## Developer Notes
+
+Quick commands to run the project locally (two terminals):
+
+Frontend (Vite):
+```bash
+npm install
+npm run dev
+```
+
+Backend (server + socket):
+```bash
+cd backend
+npm install
+node server.js
+```
+
+Environment variables (Vite uses VITE_ prefix):
+- `VITE_BACKEND_URL` — backend socket/api base URL (default: http://localhost:5000)
+- `VITE_SIP_WS` — SIP WebSocket URL (e.g. ws://172.29.175.83:8088/ws)
+- `VITE_SIP_URI` — SIP URI (e.g. sip:1001@example.com)
+- `VITE_SIP_PASSWORD` — SIP account password
+- `VITE_SIP_DOMAIN` — optional SIP domain
+- `VITE_SIP_EXT` — optional extension id
+
+What I updated in the UI and context for reliable live data:
+- `SIPContext` now exposes `sipConfig` and `setSipConfig`, polls PeerConnection.getStats during active calls to update RTP metrics, and pushes SIP logs (capped to last 100 entries).
+- Settings page loads/saves `voipsight_settings` to `localStorage` and uses `sipConfig` for register/unregister actions.
+- Softphone: dialpad and call button are disabled when not registered; call timer, mute/hold/hangup controls work during calls.
+- Dashboard / Analytics / Active Calls / Call History / Realtime Chart / Network Status / SIP Logs: wired to backend endpoints and Socket.io events so the UI shows sensible defaults before registration and live updates after registration.
+
+Socket.io events the frontend listens for (backend should emit these):
+- `init` — initial server state
+- `sip_event` — SIP log event
+- `call_connected` — a call was answered
+- `call_ended` — a call ended
+- `call_history_update` — new/updated call history
+- `active_calls_update` — active calls changed
+- `quality_update` — RTP metrics update
+- `extension_update` — extension status changed
+- `stats_update` — backend stats changed (totalCalls, etc.)
+
+Notes / Troubleshooting:
+- The UI never shows `undefined`/`NaN`/`null`; values fallback to `0`, `N/A`, or formatted placeholders.
+- If audio autoplay is blocked by the browser, click anywhere in the page to resume playback (SIPContext installs a one-time click resume handler).
+- If you see missing data, verify the backend emits the listed socket events and that `VITE_BACKEND_URL` points to the correct host.
+

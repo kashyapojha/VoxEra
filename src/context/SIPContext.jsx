@@ -38,6 +38,7 @@ export const SIPProvider = ({ children }) => {
   const localAudioRef = useRef(null)
   // Map sessions to their pc event handlers for cleanup
   const sessionHandlersRef = useRef(new Map())
+  const rtpPollRef = useRef(new Map())
   // Flag when autoplay was blocked and we need a user gesture to resume
   const autoplayBlockedRef = useRef(false)
   const resumeListenerRef = useRef(null)
@@ -264,6 +265,43 @@ export const SIPProvider = ({ children }) => {
           addLog('success', 'Call connected — audio stream started')
           setCallStatus('connected')
           startCallTimer()
+          // start polling getStats for RTP metrics every second
+          try {
+            const pc = session.connection
+            if (pc && pc.getStats) {
+              const pollId = setInterval(async () => {
+                try {
+                  const stats = await pc.getStats()
+                  // basic aggregation
+                  let jitter = 0, rtt = 0, packetsSent = 0, packetsReceived = 0, bytesSent = 0, bytesReceived = 0, packetLoss = 0
+                  stats.forEach(report => {
+                    if (report.type === 'inbound-rtp') {
+                      packetsReceived += report.packetsReceived || 0
+                      bytesReceived += report.bytesReceived || 0
+                      jitter = report.jitter || jitter
+                    }
+                    if (report.type === 'outbound-rtp') {
+                      packetsSent += report.packetsSent || 0
+                      bytesSent += report.bytesSent || 0
+                    }
+                    if (report.type === 'candidate-pair' && report.currentRoundTripTime) {
+                      rtt = report.currentRoundTripTime * 1000
+                    }
+                    if (report.type === 'remote-inbound-rtp' && report.packetsLost) {
+                      packetLoss = report.packetsLost || packetLoss
+                    }
+                  })
+
+                  updateRTPMetrics({ jitter: Number(jitter) || 0, rtt: Number(rtt) || 0, packetsSent, packetsReceived, bytesSent, bytesReceived, packetLoss })
+                } catch (err) {
+                  // ignore per-interval errors
+                }
+              }, 1000)
+              rtpPollRef.current.set(session, pollId)
+            }
+          } catch (err) {
+            // ignore
+          }
         })
 
         session.on('progress', () => {
@@ -278,6 +316,12 @@ export const SIPProvider = ({ children }) => {
           setIncomingCall(null)
           stopCallTimer()
           cleanupSessionAudio(session)
+          // stop rtp polling
+          const pid = rtpPollRef.current.get(session)
+          if (pid) {
+            clearInterval(pid)
+            rtpPollRef.current.delete(session)
+          }
         })
 
         session.on('failed', (e) => {
@@ -287,6 +331,11 @@ export const SIPProvider = ({ children }) => {
           setIncomingCall(null)
           stopCallTimer()
           cleanupSessionAudio(session)
+          const pid = rtpPollRef.current.get(session)
+          if (pid) {
+            clearInterval(pid)
+            rtpPollRef.current.delete(session)
+          }
         })
 
         // Ensure we cleanup if user terminates locally
