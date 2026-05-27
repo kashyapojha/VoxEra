@@ -37,7 +37,7 @@ function App() {
                 }
               />
               <Route
-                path="/analytics"
+                path="/reports"
                 element={
                   <ProtectedRoute>
                     <Layout><Analytics /></Layout>

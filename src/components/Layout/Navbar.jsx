@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Phone, BarChart, Settings, LogOut, Menu, X } from 'lucide-react'
+import { Phone, BarChart, Settings, LogOut, Menu, X, PieChart } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
@@ -15,7 +15,7 @@ const Navbar = ({ onMenuClick, isMobileMenuOpen }) => {
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: BarChart },
     { path: '/softphone', label: 'Softphone', icon: Phone },
-    { path: '/analytics', label: 'Analytics', icon: BarChart },
+    { path: '/reports', label: 'Reports', icon: PieChart },
     { path: '/settings', label: 'Settings', icon: Settings },
   ]
 
@@ -33,7 +33,7 @@ const Navbar = ({ onMenuClick, isMobileMenuOpen }) => {
         <div className="flex items-center gap-4">
           <button
             onClick={onMenuClick}
-            className="lg:hidden p-2 hover:bg-white/10 rounded-lg transition-colors"
+            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
           >
             {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>

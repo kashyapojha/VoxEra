@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Phone, BarChart, Settings, Activity, Clock, Users, Zap } from 'lucide-react'
+import { Phone, BarChart, Settings, Activity, Clock, Users } from 'lucide-react'
 import { motion } from 'framer-motion'
 
 const Sidebar = ({ isOpen, onClose }) => {
@@ -22,56 +22,17 @@ const Sidebar = ({ isOpen, onClose }) => {
 
   return (
     <>
-      <motion.div
-        initial={{ x: '-100%' }}
-        animate={{ x: isOpen ? 0 : '-100%' }}
-        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-        className="fixed inset-y-0 left-0 z-50 w-64 glass border-r border-white/10 lg:hidden"
-      >
-        <div className="p-6">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center">
-              <Phone className="text-white" size={20} />
-            </div>
-            <span className="text-xl font-bold gradient-text">VoIPSight</span>
-          </div>
-
-          <div className="space-y-2">
-            {menuItems.map((item) => {
-              const Icon = item.icon
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={onClose}
-                  className={`
-                    flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300
-                    ${isActive(item.path)
-                      ? 'bg-gradient-primary text-white neon-glow'
-                      : 'text-gray-400 hover:text-white hover:bg-white/10'
-                    }
-                  `}
-                >
-                  <Icon size={20} />
-                  <span>{item.label}</span>
-                </Link>
-              )
-            })}
-          </div>
-        </div>
-      </motion.div>
-
       {isOpen && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30"
         />
       )}
 
-      <aside className="hidden lg:flex flex-col w-64 glass border-r border-white/10 h-screen sticky top-0">
+      <aside className={`fixed inset-y-0 left-0 z-40 w-64 glass border-r border-white/10 h-screen flex flex-col transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-6">
           <div className="flex items-center gap-3 mb-8">
             <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center">
@@ -87,6 +48,7 @@ const Sidebar = ({ isOpen, onClose }) => {
                 <Link
                   key={item.path}
                   to={item.path}
+                  onClick={onClose}
                   className={`
                     flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300
                     ${isActive(item.path)
@@ -120,15 +82,7 @@ const Sidebar = ({ isOpen, onClose }) => {
             </div>
           </div>
 
-          <div className="mt-auto pt-6 border-t border-white/10">
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-primary/20">
-              <Zap size={20} className="text-accent" />
-              <div>
-                <p className="text-sm font-semibold text-white">Pro Plan</p>
-                <p className="text-xs text-gray-400">All features unlocked</p>
-              </div>
-            </div>
-          </div>
+
         </div>
       </aside>
     </>
