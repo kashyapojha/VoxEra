@@ -308,3 +308,111 @@ Notes / Troubleshooting:
 - If audio autoplay is blocked by the browser, click anywhere in the page to resume playback (SIPContext installs a one-time click resume handler).
 - If you see missing data, verify the backend emits the listed socket events and that `VITE_BACKEND_URL` points to the correct host.
 
+
+
+/**
+ * Integration Example
+ * ===================
+ * How to add CallQualityPanel to your existing Softphone.jsx
+ *
+ * Step 1: Import the hook and panel
+ * Step 2: Pass currentCall from SIPContext to the hook
+ * Step 3: Render CallQualityPanel with stats and history
+ */
+
+import { useSIP } from '../../context/SIPContext'
+import { useWebRTCStats } from '../../hooks/useWebRTCStats'
+import { CallQualityPanel } from '../../components/QoS/QoSComponents'
+
+// ── Inside your Softphone component ──
+const SoftphoneWithQoS = () => {
+  const { currentCall, callStatus, isRegistered } = useSIP()
+
+  // Pass active JsSIP session to hook — it handles start/stop automatically
+  const { stats, history } = useWebRTCStats(currentCall)
+
+  const isInCall = callStatus !== 'idle' && callStatus !== 'ended'
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      {/* Your existing softphone UI here */}
+      <div>
+        {/* DialPad, CallControls etc */}
+      </div>
+
+      {/* Call Quality Panel — right side */}
+      <CallQualityPanel
+        stats={stats}
+        history={history}
+        isActive={isInCall}
+      />
+
+    </div>
+  )
+}
+
+export default SoftphoneWithQoS
+
+/**
+ * ── Folder Structure ──
+ *
+ * src/
+ * ├── hooks/
+ * │   └── useWebRTCStats.js          ← custom hook
+ * ├── utils/
+ * │   └── statsParser.js             ← parsing + quality score logic
+ * ├── components/
+ * │   └── QoS/
+ * │       └── QoSComponents.jsx      ← all dashboard components
+ * └── pages/
+ *     └── Softphone.jsx              ← integrate CallQualityPanel here
+ *
+ *
+ * ── How each metric is calculated ──
+ *
+ * JITTER
+ *   Source: inbound-rtp → report.jitter (in seconds)
+ *   Formula: jitter * 1000 → milliseconds
+ *   Meaning: Statistical variance in packet arrival timing.
+ *            High jitter = choppy audio.
+ *
+ * RTT (Round Trip Time)
+ *   Source 1: remote-inbound-rtp → report.roundTripTime (seconds)
+ *   Source 2: candidate-pair → report.currentRoundTripTime (seconds)
+ *   Formula: rtt * 1000 → milliseconds
+ *   Meaning: Time for a packet to travel to remote and back.
+ *            High RTT = conversation feels delayed.
+ *
+ * PACKET LOSS
+ *   Source: inbound-rtp → packetsReceived + packetsLost
+ *   Formula: (packetsLost / (packetsReceived + packetsLost)) * 100
+ *   Meaning: Percentage of RTP packets that never arrived.
+ *            >5% causes audible dropouts and artifacts.
+ *
+ * BITRATE
+ *   Source: inbound-rtp → bytesReceived (cumulative)
+ *   Formula: (bytesReceived_now - bytesReceived_prev) * 8 / intervalSeconds / 1000 → kbps
+ *   Meaning: Current audio data throughput. Opus uses ~24-32 kbps for voice.
+ *
+ * CODEC
+ *   Source: inbound-rtp → codecId → codec report → mimeType
+ *   Example: 'audio/opus' → displayed as 'OPUS'
+ *
+ * ICE CANDIDATE TYPE
+ *   Source: candidate-pair (state=succeeded) → localCandidateId → local-candidate → candidateType
+ *   Values:
+ *     host  = direct LAN connection (best)
+ *     srflx = NAT traversal via STUN (good)
+ *     relay = via TURN server (acceptable, higher latency)
+ *
+ * CALL QUALITY SCORE
+ *   Starts at 100, deducted based on thresholds:
+ *   Jitter:      >50ms=-40, >30ms=-25, >15ms=-10
+ *   RTT:         >300ms=-40, >150ms=-25, >80ms=-10
+ *   PacketLoss:  >10%=-40, >5%=-25, >1%=-10
+ *   Score >= 80 → Excellent
+ *   Score >= 60 → Good
+ *   Score >= 40 → Fair
+ *   Score  < 40 → Poor
+ */

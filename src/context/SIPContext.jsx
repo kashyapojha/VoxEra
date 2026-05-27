@@ -42,6 +42,9 @@ export const SIPProvider = ({ children }) => {
   // Flag when autoplay was blocked and we need a user gesture to resume
   const autoplayBlockedRef = useRef(false)
   const resumeListenerRef = useRef(null)
+  const notificationRef = useRef(null)
+  const audioCtxRef = useRef(null)
+  const oscillatorRef = useRef(null)
 
   // ── Add SIP Log ──
   const addLog = useCallback((level, message) => {
@@ -70,10 +73,20 @@ export const SIPProvider = ({ children }) => {
   // ── Unregister ──
   const unregister = useCallback(() => {
     if (uaRef.current) {
-      uaRef.current.stop()
-      uaRef.current = null
-      setIsRegistered(false)
-      addLog('info', 'SIP unregistered')
+      try {
+        if (typeof uaRef.current.unregister === 'function') {
+          uaRef.current.unregister()
+          addLog('info', 'SIP unregister request sent')
+        } else {
+          // Fallback: stop UA if unregister not available
+          uaRef.current.stop()
+          uaRef.current = null
+          addLog('info', 'SIP UA stopped (no unregister API)')
+        }
+        setIsRegistered(false)
+      } catch (err) {
+        addLog('error', `Error during unregister: ${err.message}`)
+      }
     }
   }, [addLog])
 
@@ -198,7 +211,8 @@ export const SIPProvider = ({ children }) => {
         password:        cfg.password,
         register:        true,
         session_timers:  false,
-        register_expires: 300,
+        register_expires: 600,
+        connection_recovery_enabled: true,
         connection_recovery_min_interval: 2,
         connection_recovery_max_interval: 30,
       }
@@ -214,8 +228,7 @@ export const SIPProvider = ({ children }) => {
       })
 
       userAgent.on('disconnected', () => {
-        addLog('warning', 'WebSocket disconnected')
-        setIsRegistered(false)
+        addLog('warning', 'WebSocket disconnected — waiting for reconnect...')
       })
 
       userAgent.on('registered', () => {
@@ -233,6 +246,15 @@ export const SIPProvider = ({ children }) => {
         setIsRegistered(false)
       })
 
+      userAgent.on('registrationExpiring', () => {
+        addLog('warning', 'SIP registration expiring — renewing...')
+        try {
+          userAgent.register()
+        } catch (err) {
+          addLog('error', `Failed to renew registration: ${err.message}`)
+        }
+      })
+
       userAgent.on('newRTCSession', (data) => {
         const session = data.session
         if (!session) return
@@ -245,6 +267,36 @@ export const SIPProvider = ({ children }) => {
           addLog('info', `Incoming call from ${session.remote_identity.uri.user}`)
           setIncomingCall(session)
           setCallStatus('incoming')
+
+          // Try to show a system notification for incoming call
+          try {
+            if (typeof Notification !== 'undefined') {
+              if (Notification.permission === 'default') Notification.requestPermission()
+              if (Notification.permission === 'granted') {
+                if (notificationRef.current) notificationRef.current.close()
+                notificationRef.current = new Notification('Incoming call', { body: `From ${session.remote_identity.uri.user}` })
+              }
+            }
+          } catch (err) {
+            // ignore notification errors
+          }
+
+          // Try to play a simple ringtone via AudioContext; may require user gesture
+          try {
+            if (!audioCtxRef.current) audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)()
+            const ctx = audioCtxRef.current
+            const osc = ctx.createOscillator()
+            const gain = ctx.createGain()
+            osc.type = 'sine'
+            osc.frequency.value = 600
+            gain.gain.value = 0.02
+            osc.connect(gain)
+            gain.connect(ctx.destination)
+            oscillatorRef.current = { osc, gain }
+            osc.start()
+          } catch (err) {
+            // autoplay blocked or unsupported
+          }
         }
 
         // Setup audio handlers for this session's PeerConnection
@@ -265,6 +317,9 @@ export const SIPProvider = ({ children }) => {
           addLog('success', 'Call connected — audio stream started')
           setCallStatus('connected')
           startCallTimer()
+          // Close incoming notification and stop ringtone
+          try { if (notificationRef.current) { notificationRef.current.close(); notificationRef.current = null } } catch (e) {}
+          try { if (oscillatorRef.current) { oscillatorRef.current.osc.stop(); oscillatorRef.current = null } } catch (e) {}
           // start polling getStats for RTP metrics every second
           try {
             const pc = session.connection
@@ -322,6 +377,8 @@ export const SIPProvider = ({ children }) => {
             clearInterval(pid)
             rtpPollRef.current.delete(session)
           }
+          try { if (notificationRef.current) { notificationRef.current.close(); notificationRef.current = null } } catch (e) {}
+          try { if (oscillatorRef.current) { oscillatorRef.current.osc.stop(); oscillatorRef.current = null } } catch (e) {}
         })
 
         session.on('failed', (e) => {
@@ -336,6 +393,8 @@ export const SIPProvider = ({ children }) => {
             clearInterval(pid)
             rtpPollRef.current.delete(session)
           }
+          try { if (notificationRef.current) { notificationRef.current.close(); notificationRef.current = null } } catch (e) {}
+          try { if (oscillatorRef.current) { oscillatorRef.current.osc.stop(); oscillatorRef.current = null } } catch (e) {}
         })
 
         // Ensure we cleanup if user terminates locally
@@ -374,7 +433,15 @@ export const SIPProvider = ({ children }) => {
     }
 
     return () => {
-      unregister()
+      if (uaRef.current) {
+        try {
+          uaRef.current.stop()
+          uaRef.current = null
+          addLog('info', 'SIP User Agent stopped on unmount')
+        } catch (err) {
+          // ignore errors during unmount
+        }
+      }
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -473,6 +540,9 @@ export const SIPProvider = ({ children }) => {
     setCurrentCall(incomingCall)
     setIncomingCall(null)
     addLog('info', 'Incoming call answered')
+    // stop ringtone/notification immediately on user answer
+    try { if (notificationRef.current) { notificationRef.current.close(); notificationRef.current = null } } catch (e) {}
+    try { if (oscillatorRef.current) { oscillatorRef.current.osc.stop(); oscillatorRef.current = null } } catch (e) {}
   }, [incomingCall, addLog])
 
   // ── Reject Call ──
@@ -482,6 +552,8 @@ export const SIPProvider = ({ children }) => {
     setIncomingCall(null)
     setCallStatus('idle')
     addLog('info', 'Incoming call rejected')
+    try { if (notificationRef.current) { notificationRef.current.close(); notificationRef.current = null } } catch (e) {}
+    try { if (oscillatorRef.current) { oscillatorRef.current.osc.stop(); oscillatorRef.current = null } } catch (e) {}
   }, [incomingCall, addLog])
 
   // ── Hangup ──
@@ -492,6 +564,8 @@ export const SIPProvider = ({ children }) => {
     setCallStatus('idle')
     stopCallTimer()
     addLog('info', 'Call terminated')
+    try { if (notificationRef.current) { notificationRef.current.close(); notificationRef.current = null } } catch (e) {}
+    try { if (oscillatorRef.current) { oscillatorRef.current.osc.stop(); oscillatorRef.current = null } } catch (e) {}
   }, [currentCall, addLog, stopCallTimer])
 
   // ── Hold ──

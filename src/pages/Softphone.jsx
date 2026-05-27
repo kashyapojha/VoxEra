@@ -7,9 +7,12 @@ import CallControls from '../components/Softphone/CallControls'
 import CallTimer from '../components/Softphone/CallTimer'
 import IncomingCallModal from '../components/Softphone/IncomingCallModal'
 import { useSIP } from '../context/SIPContext'
+import { useWebRTCStats } from '../hooks/useWebRTCStats'
+import { CallQualityPanel } from '../components/QoS/QoSComponents'
 
 const Softphone = () => {
   const {
+    currentCall,
     callStatus,
     callDuration,
     makeCall,
@@ -21,6 +24,8 @@ const Softphone = () => {
     isRegistered,
     sipConfig
   } = useSIP()
+
+  const { stats, history } = useWebRTCStats(currentCall)
 
   const [isMuted,  setIsMuted]  = useState(false)
   const [isOnHold, setIsOnHold] = useState(false)
@@ -87,6 +92,10 @@ const Softphone = () => {
 
             {/* Dialpad */}
             <DialPad onCall={handleCall} disabled={!isRegistered} />
+
+            <div className="mt-8 w-full">
+              <CallQualityPanel stats={stats} history={history} isActive={isInCall} />
+            </div>
 
             {/* Call controls — only during active call */}
             {isInCall && (
