@@ -1,9 +1,9 @@
-import { useSIP } from '../../context/SIPContext'
+import { useSip } from '../../context/SipContext'
 import { Activity, ArrowUpRight, ArrowDownLeft, Clock, Signal } from 'lucide-react'
 import GlassCard from '../UI/GlassCard'
 
 const RTPMetrics = () => {
-  const { rtpMetrics } = useSIP()
+  const { rtpMetrics } = useSip()
 
   const metrics = [
     {

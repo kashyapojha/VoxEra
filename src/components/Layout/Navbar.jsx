@@ -3,13 +3,13 @@ import { Phone, BarChart, Settings, LogOut, Menu, X, PieChart } from 'lucide-rea
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { useSIP } from '../../context/SIPContext'
+import { useSip } from '../../context/SipContext'
 
 const Navbar = ({ onMenuClick, isMobileMenuOpen }) => {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, logout } = useAuth()
-  const { isRegistered } = useSIP()
+  const { isRegistered } = useSip()
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
 
   const navItems = [

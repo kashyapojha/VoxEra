@@ -1,11 +1,11 @@
 import { History, PhoneIncoming, PhoneOutgoing, Clock, Calendar } from 'lucide-react'
 import GlassCard from '../UI/GlassCard'
-import { useSIP } from '../../context/SIPContext'
+import { useSip } from '../../context/SipContext'
 import { useSocket } from '../../context/SocketContext'
 import { useEffect, useState } from 'react'
 
 const CallHistory = () => {
-  const { sipLogs } = useSIP()
+  const { sipLogs } = useSip()
   const { socket, backendUrl } = useSocket()
   const [callHistory, setCallHistory] = useState([])
 

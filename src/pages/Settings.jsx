@@ -3,10 +3,10 @@ import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { User, Bell, Shield, Phone, Globe, Save, LogOut } from 'lucide-react'
 import GlassCard from '../components/UI/GlassCard'
-import { useSIP } from '../context/SIPContext'
+import { useSip } from '../context/SipContext'
 
 const Settings = () => {
-  const { isRegistered, register, unregister, sipConfig, setSipConfig } = useSIP()
+  const { isRegistered, register, unregister, sipConfig, setSipConfig } = useSip()
 
   // Load saved settings from localStorage on mount
   useEffect(() => {

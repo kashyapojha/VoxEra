@@ -1,9 +1,9 @@
 import { Wifi, Signal, Server, Cpu } from 'lucide-react'
 import GlassCard from '../UI/GlassCard'
-import { useSIP } from '../../context/SIPContext'
+import { useSip } from '../../context/SipContext'
 
 const NetworkStatus = () => {
-  const { rtpMetrics, isRegistered } = useSIP()
+  const { rtpMetrics, isRegistered } = useSip()
 
   const getStatusColor = (value, type) => {
     if (type === 'latency') {

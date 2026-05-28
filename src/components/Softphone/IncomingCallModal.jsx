@@ -1,13 +1,19 @@
+/**
+ * IncomingCallModal.jsx
+ * Shows when an incoming SIP call arrives.
+ * Uses SipContext — not useSip from hooks folder.
+ */
+
 import { motion, AnimatePresence } from 'framer-motion'
 import { Phone, PhoneOff } from 'lucide-react'
-import { useSIP } from '../../context/SIPContext'
+import { useSip } from '../../context/SipContext'
 
 const IncomingCallModal = () => {
-  const { incomingCall, answerCall, rejectCall } = useSIP()
+  const { incomingCall, incomingFrom, answerCall, rejectCall } = useSip()
 
   if (!incomingCall) return null
 
-  const caller = incomingCall.remote_identity?.uri?.user || 'Unknown'
+  const caller = incomingFrom || 'Unknown'
 
   return (
     <AnimatePresence>
@@ -22,38 +28,52 @@ const IncomingCallModal = () => {
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.8, opacity: 0 }}
           transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-          className="glass-card max-w-md w-full text-center"
+          className="glass-card max-w-sm w-full text-center p-8 rounded-2xl border border-white/10"
         >
           <div className="flex flex-col items-center gap-6">
-            <div className="w-24 h-24 rounded-full bg-gradient-primary flex items-center justify-center animate-pulse-slow">
-              <Phone size={40} className="text-white" />
+
+            {/* Pulsing avatar */}
+            <div className="relative">
+              <div className="w-20 h-20 rounded-full bg-gradient-primary flex items-center justify-center">
+                <Phone size={36} className="text-white" />
+              </div>
+              <span className="absolute inset-0 rounded-full bg-gradient-primary opacity-30 animate-ping" />
             </div>
 
+            {/* Caller info */}
             <div>
-              <h2 className="text-2xl font-bold text-white mb-2">Incoming Call</h2>
-              <p className="text-3xl font-light text-accent">{caller}</p>
-              <p className="text-gray-400 mt-2">is calling you...</p>
+              <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Incoming Call</p>
+              <p className="text-4xl font-mono font-light text-white">{caller}</p>
+              <p className="text-sm text-gray-400 mt-1">is calling you...</p>
             </div>
 
-            <div className="flex gap-6">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={rejectCall}
-                className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center hover:bg-red-600 transition-all duration-300 neon-glow"
-              >
-                <PhoneOff size={24} className="text-white" />
-              </motion.button>
+            {/* Buttons */}
+            <div className="flex gap-10">
+              <div className="flex flex-col items-center gap-2">
+                <motion.button
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.92 }}
+                  onClick={rejectCall}
+                  className="w-14 h-14 rounded-full bg-red-500 flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg"
+                >
+                  <PhoneOff size={22} className="text-white" />
+                </motion.button>
+                <span className="text-xs text-gray-500">Decline</span>
+              </div>
 
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={answerCall}
-                className="w-16 h-16 rounded-full bg-gradient-primary flex items-center justify-center hover:shadow-[0_0_40px_rgba(91,46,255,0.6)] transition-all duration-300 neon-glow"
-              >
-                <Phone size={24} className="text-white" />
-              </motion.button>
+              <div className="flex flex-col items-center gap-2">
+                <motion.button
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.92 }}
+                  onClick={answerCall}
+                  className="w-14 h-14 rounded-full bg-green-500 flex items-center justify-center hover:bg-green-600 transition-colors shadow-lg"
+                >
+                  <Phone size={22} className="text-white" />
+                </motion.button>
+                <span className="text-xs text-gray-500">Answer</span>
+              </div>
             </div>
+
           </div>
         </motion.div>
       </motion.div>

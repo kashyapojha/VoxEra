@@ -5,14 +5,14 @@ import ActiveCalls from '../components/Monitoring/ActiveCalls'
 import NetworkStatus from '../components/Monitoring/NetworkStatus'
 import RealtimeChart from '../components/Analytics/RealtimeChart'
 import SIPLogs from '../components/Monitoring/SIPLogs'
-import { useSIP } from '../context/SIPContext'
+import { useSip } from '../context/SipContext'
 import { useSocket } from '../context/SocketContext'
 import { useEffect, useState } from 'react'
 
 const Dashboard = () => {
-  const { isRegistered, currentCall, callDuration, sipLogs } = useSIP()
+  const { isRegistered, currentCall, callDuration } = useSip()
   const { socket, backendUrl } = useSocket()
-  const [statsBackend, setStatsBackend] = useState({ totalCalls: 0 })
+  const [statsBackend, setStatsBackend] = useState({ totalCalls: 0, completedCalls: 0 })
 
   useEffect(() => {
     let mounted = true
@@ -34,10 +34,11 @@ const Dashboard = () => {
     return `${m}:${s}`
   }
 
-  const completedCalls = sipLogs.filter(l => l.level === 'success').length
-  const failedCalls    = sipLogs.filter(l => l.level === 'error').length
-  const totalCalls     = statsBackend.totalCalls || (completedCalls + failedCalls)
-  const successRate    = totalCalls > 0 ? ((completedCalls / totalCalls) * 100).toFixed(1) : '0.0'
+  const totalCalls     = statsBackend.totalCalls || 0
+  const completedCalls = statsBackend.completedCalls || 0
+  const successRate    = totalCalls > 0
+    ? ((completedCalls / totalCalls) * 100).toFixed(1)
+    : '0.0'
 
   const stats = [
     {

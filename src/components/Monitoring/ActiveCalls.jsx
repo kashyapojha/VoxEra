@@ -1,11 +1,11 @@
 import { Phone, PhoneOff, Clock, User } from 'lucide-react'
 import GlassCard from '../UI/GlassCard'
-import { useSIP } from '../../context/SIPContext'
+import { useSip } from '../../context/SipContext'
 import { useSocket } from '../../context/SocketContext'
 import { useEffect, useState } from 'react'
 
 const ActiveCalls = () => {
-  const { currentCall, incomingCall, callDuration, callStatus } = useSIP()
+  const { currentCall, incomingCall, callDuration, callStatus } = useSip()
   const { socket, backendUrl } = useSocket()
   const [activeCalls, setActiveCalls] = useState([])
 

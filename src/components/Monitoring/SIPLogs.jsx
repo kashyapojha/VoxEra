@@ -1,10 +1,11 @@
-import { useSIP } from '../../context/SIPContext'
+import { useSip } from '../../context/SipContext'
 import { FileText, AlertCircle, CheckCircle, Info, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import GlassCard from '../UI/GlassCard'
 
 const SIPLogs = () => {
-  const { sipLogs } = useSIP()
+  const { sipLogs } = useSip()
+  const logs = sipLogs || []
   const listRef = useRef(null)
 
   useEffect(() => {
@@ -46,17 +47,17 @@ const SIPLogs = () => {
           <FileText size={20} className="text-accent" />
           <h3 className="text-lg font-semibold">SIP Logs</h3>
         </div>
-        <span className="text-sm text-gray-400">{sipLogs.length} entries</span>
+        <span className="text-sm text-gray-400">{logs.length} entries</span>
       </div>
 
       <div ref={listRef} className="h-96 overflow-y-auto scrollbar-hide space-y-2">
-        {sipLogs.length === 0 ? (
+        {logs.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500">
             <FileText size={48} className="mb-2 opacity-50" />
             <p>No logs yet</p>
           </div>
         ) : (
-          sipLogs.map((log, index) => (
+          logs.map((log, index) => (
             <div
               key={index}
               className="flex items-start gap-3 p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
