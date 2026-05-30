@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+
+  # ── Frontend (React + Nginx) ──
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - voipsight-net
+    restart: unless-stopped
+
+  # ── Backend (Node.js) ──
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+    networks:
+      - voipsight-net
+    restart: unless-stopped
+
+networks:
+  voipsight-net:
+    driver: bridge

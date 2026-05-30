@@ -308,6 +308,247 @@ Notes / Troubleshooting:
 - If audio autoplay is blocked by the browser, click anywhere in the page to resume playback (SIPContext installs a one-time click resume handler).
 - If you see missing data, verify the backend emits the listed socket events and that `VITE_BACKEND_URL` points to the correct host.
 
+# VoIPSight — DevOps Setup Guide
+
+## Architecture
+
+```
+GitHub Push → CI/CD Pipeline
+                ↓
+         Build & Test (Node.js)
+                ↓
+         Docker Build
+                ↓
+         Push to AWS ECR
+                ↓
+         Deploy to AWS EC2
+                ↓
+         VoIPSight Live at http://EC2_IP
+```
+
+---
+
+## Folder Structure
+
+```
+VoIPSight/
+├── Dockerfile                        ← Frontend React image
+├── docker-compose.yml                ← Local dev + prod compose
+├── nginx/
+│   └── nginx.conf                    ← Nginx SPA config
+├── backend/
+│   └── Dockerfile                    ← Backend Node.js image
+├── terraform/
+│   ├── main.tf                       ← AWS resources
+│   ├── variables.tf                  ← Input variables
+│   ├── outputs.tf                    ← Output values
+│   └── terraform.tfvars              ← Your actual values (gitignored)
+└── .github/
+    └── workflows/
+        └── ci-cd.yml                 ← Full pipeline
+```
+
+---
+
+## Step 1 — AWS Setup
+
+### 1.1 Create IAM User
+
+1. AWS Console → IAM → Users → Create User
+2. Name: `voipsight-deploy`
+3. Attach policy: `AdministratorAccess`
+4. Create user → Security credentials → Create access key
+5. Use case: CLI
+6. Save `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
+
+### 1.2 Configure AWS CLI locally
+
+```bash
+aws configure
+# Enter: Access Key ID
+# Enter: Secret Access Key
+# Region: ap-south-1
+# Output: json
+```
+
+---
+
+## Step 2 — SSH Key Generation
+
+```bash
+# Generate SSH key pair
+ssh-keygen -t rsa -b 4096 -f voipsight-key
+
+# This creates:
+# voipsight-key     ← private key (keep secret)
+# voipsight-key.pub ← public key (paste in terraform.tfvars)
+```
+
+---
+
+## Step 3 — Terraform — Provision AWS Infrastructure
+
+```bash
+cd terraform
+
+# Initialize Terraform
+terraform init
+
+# Preview what will be created
+terraform plan
+
+# Apply — creates EC2, ECR, Security Group, EIP
+terraform apply
+
+# Note the outputs:
+# ec2_public_ip
+# frontend_ecr_url
+# backend_ecr_url
+# app_url
+# ssh_command
+```
+
+### What Terraform creates:
+
+| Resource | Details |
+|---|---|
+| EC2 Instance | t2.micro, Amazon Linux 2023 |
+| Elastic IP | Fixed public IP |
+| Security Group | Ports 80, 443, 5000, 22, 8088-8089, RTP |
+| ECR Frontend | Docker image registry |
+| ECR Backend | Docker image registry |
+| IAM Role | EC2 → ECR read access |
+
+---
+
+## Step 4 — GitHub Secrets Setup
+
+Go to: GitHub → voipsight repo → Settings → Secrets → Actions
+
+Add these secrets:
+
+| Secret | Value |
+|---|---|
+| `AWS_ACCESS_KEY_ID` | From IAM user |
+| `AWS_SECRET_ACCESS_KEY` | From IAM user |
+| `EC2_HOST` | Elastic IP from Terraform output |
+| `EC2_SSH_KEY` | Contents of `voipsight-key` (private key) |
+| `VITE_SIP_DOMAIN` | Your Asterisk IP |
+| `VITE_SIP_WS` | ws://your-asterisk-ip:8088/ws |
+| `VITE_BACKEND_URL` | http://EC2_IP:5000 |
+
+---
+
+## Step 5 — Local Docker Test
+
+Before pushing to GitHub, test Docker locally:
+
+```bash
+# Build and run everything
+docker-compose up --build
+
+# Frontend: http://localhost:80
+# Backend:  http://localhost:5000/api/health
+
+# Stop
+docker-compose down
+```
+
+---
+
+## Step 6 — Push to GitHub → Pipeline Runs
+
+```bash
+git add .
+git commit -m "Add DevOps setup"
+git push origin main
+```
+
+Pipeline will automatically:
+1. Install dependencies and build frontend
+2. Run tests
+3. Build Docker images
+4. Push to ECR
+5. SSH into EC2 and deploy containers
+
+---
+
+## Step 7 — Verify Deployment
+
+```bash
+# SSH into EC2
+ssh -i voipsight-key.pem ec2-user@YOUR_EC2_IP
+
+# Check running containers
+docker ps
+
+# Check logs
+docker logs voipsight-frontend
+docker logs voipsight-backend
+
+# Test health
+curl http://localhost/api/health
+```
+
+---
+
+## Pipeline Jobs Summary
+
+### Job 1 — Build & Test
+- Runs on every push and PR
+- Installs dependencies
+- Builds frontend
+- Runs tests
+
+### Job 2 — Docker Build & Push
+- Runs only on main branch push
+- Builds frontend and backend images
+- Tags with git SHA and latest
+- Pushes to AWS ECR
+
+### Job 3 — Deploy to EC2
+- Runs after successful Docker push
+- SSHs into EC2
+- Pulls latest images from ECR
+- Restarts containers
+- Verifies health endpoint
+
+---
+
+## Destroy Infrastructure (when done)
+
+```bash
+cd terraform
+terraform destroy
+```
+
+This removes all AWS resources and stops billing.
+
+---
+
+## Cost Estimate
+
+| Resource | Monthly Cost |
+|---|---|
+| EC2 t2.micro | Free tier (750 hrs/month) |
+| Elastic IP | Free when attached to running instance |
+| ECR | Free tier (500MB storage) |
+| Data transfer | Minimal for demo usage |
+| **Total** | **~$0 on free tier** |
+
+---
+
+## GitHub Actions Secrets Reference
+
+```
+AWS_ACCESS_KEY_ID       → IAM user access key
+AWS_SECRET_ACCESS_KEY   → IAM user secret key
+EC2_HOST                → Elastic IP address
+EC2_SSH_KEY             → Private SSH key (full contents of voipsight-key)
+VITE_SIP_DOMAIN         → Asterisk server IP
+VITE_SIP_WS             → ws://asterisk-ip:8088/ws
+VITE_BACKEND_URL        → http://ec2-ip:5000
+```
 
 
 /**
@@ -416,3 +657,4 @@ export default SoftphoneWithQoS
  *   Score >= 40 → Fair
  *   Score  < 40 → Poor
  */
+
