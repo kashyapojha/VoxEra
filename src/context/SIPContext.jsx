@@ -17,10 +17,10 @@ import {
   SIP_DOMAIN
 } from '../services/sipService'
 
-const SipContext = createContext(null)
+const SIPContext = createContext(null)
 
 export const useSip = () => {
-  const ctx = useContext(SipContext)
+  const ctx = useContext(SIPContext)
   if (!ctx) throw new Error('useSip must be used within SipProvider')
   return ctx
 }
@@ -331,8 +331,8 @@ export const SipProvider = ({ children }) => {
   }
 
   return (
-    <SipContext.Provider value={value}>
+    <SIPContext.Provider value={value}>
       {children}
-    </SipContext.Provider>
+    </SIPContext.Provider>
   )
 }

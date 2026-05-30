@@ -6,7 +6,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { Phone, PhoneOff } from 'lucide-react'
-import { useSip } from '../../context/SipContext'
+import { useSip } from '../../context/SIPContext'
 
 const IncomingCallModal = () => {
   const { incomingCall, incomingFrom, answerCall, rejectCall } = useSip()

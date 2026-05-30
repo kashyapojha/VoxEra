@@ -3,7 +3,7 @@ import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { User, Bell, Shield, Phone, Globe, Save, LogOut } from 'lucide-react'
 import GlassCard from '../components/UI/GlassCard'
-import { useSip } from '../context/SipContext'
+import { useSip } from '../context/SIPContext'
 
 const Settings = () => {
   const { isRegistered, register, unregister, sipConfig, setSipConfig } = useSip()

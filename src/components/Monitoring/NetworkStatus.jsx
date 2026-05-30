@@ -1,6 +1,6 @@
 import { Wifi, Signal, Server, Cpu } from 'lucide-react'
 import GlassCard from '../UI/GlassCard'
-import { useSip } from '../../context/SipContext'
+import { useSip } from '../../context/SIPContext'
 
 const NetworkStatus = () => {
   const { rtpMetrics, isRegistered } = useSip()

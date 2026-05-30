@@ -5,7 +5,7 @@ import ActiveCalls from '../components/Monitoring/ActiveCalls'
 import NetworkStatus from '../components/Monitoring/NetworkStatus'
 import RealtimeChart from '../components/Analytics/RealtimeChart'
 import SIPLogs from '../components/Monitoring/SIPLogs'
-import { useSip } from '../context/SipContext'
+import { useSip } from '../context/SIPContext'
 import { useSocket } from '../context/SocketContext'
 import { useEffect, useState } from 'react'
 

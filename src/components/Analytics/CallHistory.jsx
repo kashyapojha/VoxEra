@@ -1,6 +1,6 @@
 import { History, PhoneIncoming, PhoneOutgoing, Clock, Calendar } from 'lucide-react'
 import GlassCard from '../UI/GlassCard'
-import { useSip } from '../../context/SipContext'
+import { useSip } from '../../context/SIPContext'
 import { useSocket } from '../../context/SocketContext'
 import { useEffect, useState } from 'react'
 

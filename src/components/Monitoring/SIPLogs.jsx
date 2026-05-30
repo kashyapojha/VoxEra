@@ -1,4 +1,4 @@
-import { useSip } from '../../context/SipContext'
+import { useSip } from '../../context/SIPContext'
 import { FileText, AlertCircle, CheckCircle, Info, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import GlassCard from '../UI/GlassCard'

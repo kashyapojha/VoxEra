@@ -3,7 +3,7 @@ import { Phone, BarChart, Settings, LogOut, Menu, X, PieChart } from 'lucide-rea
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { useSip } from '../../context/SipContext'
+import { useSip } from '../../context/SIPContext'
 
 const Navbar = ({ onMenuClick, isMobileMenuOpen }) => {
   const location = useLocation()

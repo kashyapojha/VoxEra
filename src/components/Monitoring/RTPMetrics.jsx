@@ -1,4 +1,4 @@
-import { useSip } from '../../context/SipContext'
+import { useSip } from '../../context/SIPContext'
 import { Activity, ArrowUpRight, ArrowDownLeft, Clock, Signal } from 'lucide-react'
 import GlassCard from '../UI/GlassCard'
 
