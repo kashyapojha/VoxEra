@@ -21,7 +21,7 @@ const SIPContext = createContext(null)
 
 export const useSip = () => {
   const ctx = useContext(SIPContext)
-  if (!ctx) throw new Error('useSip must be used within SipProvider')
+  if (!ctx) throw new Error('useSip must be used within SIPProvider')
   return ctx
 }
 
@@ -32,7 +32,7 @@ const defaultMetrics = {
   bytesSent: 0, bytesReceived: 0
 }
 
-export const SipProvider = ({ children }) => {
+export const SIPProvider = ({ children }) => {
   // ── Registration state ──
   const [isRegistered,    setIsRegistered]    = useState(false)
   const [isRegistering,   setIsRegistering]   = useState(false)

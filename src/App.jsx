@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { SocketProvider } from './context/SocketContext'
-import { SipProvider } from './context/SIPContext'
+import { SIPProvider } from './context/SIPContext'
 import Layout from './components/Layout/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import Landing from './pages/Landing'
@@ -16,7 +16,7 @@ function App() {
     <Router>
       <AuthProvider>
         <SocketProvider>
-          <SipProvider>
+          <SIPProvider>
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/login" element={<Login />} />
@@ -54,7 +54,7 @@ function App() {
               />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
-          </SipProvider>
+          </SIPProvider>
         </SocketProvider>
       </AuthProvider>
     </Router>

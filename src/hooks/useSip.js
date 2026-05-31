@@ -8,4 +8,4 @@
  *   const { isRegistered, makeCall, callStatus } = useSip()
  */
 
-export { useSip } from '../context/SipContext'
+export { useSip } from '../context/SIPContext'

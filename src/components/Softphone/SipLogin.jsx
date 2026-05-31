@@ -10,7 +10,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Phone, Lock, User, Wifi, WifiOff, Loader } from 'lucide-react'
-import { useSip } from '../../context/SipContext'
+import { useSip } from '../../context/SIPContext'
 
 const SipLogin = () => {
   const {
