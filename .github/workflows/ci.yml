@@ -1,196 +1,175 @@
 name: VoIPSight CI/CD Pipeline
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-env:
-  AWS_REGION: ap-south-1
-  ECR_FRONTEND_REPO: voipsight-frontend
-  ECR_BACKEND_REPO: voipsight-backend
+push:
+branches: [main]
+pull_request:
+branches: [main]
 
 jobs:
 
-  # ════════════════════════════════════════
-  # JOB 1 — BUILD AND TEST
-  # ════════════════════════════════════════
-  build-and-test:
-    name: Build & Test
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      # ── Frontend ──
-      - name: Install frontend dependencies
-        run: npm ci
-
-      - name: Run frontend lint
-        run: npm run lint --if-present
-
-      - name: Build frontend
-        run: npm run build
-        env:
-          VITE_SIP_DOMAIN: ${{ secrets.VITE_SIP_DOMAIN }}
-          VITE_SIP_WS: ${{ secrets.VITE_SIP_WS }}
-          VITE_BACKEND_URL: ${{ secrets.VITE_BACKEND_URL }}
-
-      - name: Upload frontend build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: dist/
-          retention-days: 1
-
-      # ── Backend ──
-      - name: Install backend dependencies
-        working-directory: ./backend
-        run: npm ci
-
-      - name: Run backend tests
-        working-directory: ./backend
-        run: npm test --if-present
-        env:
-          NODE_ENV: test
-
-  # ════════════════════════════════════════
-# JOB 2 — DOCKER BUILD AND PUSH TO DOCKER HUB
 # ════════════════════════════════════════
+
+# JOB 1 — BUILD AND TEST
+
+# ════════════════════════════════════════
+
+build-and-test:
+name: Build & Test
+runs-on: ubuntu-latest
+
+```
+steps:
+  - name: Checkout code
+    uses: actions/checkout@v4
+
+  - name: Setup Node.js
+    uses: actions/setup-node@v4
+    with:
+      node-version: '20'
+      cache: 'npm'
+
+  # Frontend
+  - name: Install frontend dependencies
+    run: npm ci
+
+  - name: Run frontend lint
+    run: npm run lint --if-present
+
+  - name: Build frontend
+    run: npm run build
+    env:
+      VITE_SIP_DOMAIN: ${{ secrets.VITE_SIP_DOMAIN }}
+      VITE_SIP_WS: ${{ secrets.VITE_SIP_WS }}
+      VITE_BACKEND_URL: ${{ secrets.VITE_BACKEND_URL }}
+
+  - name: Upload frontend build artifact
+    uses: actions/upload-artifact@v4
+    with:
+      name: frontend-dist
+      path: dist/
+      retention-days: 1
+
+  # Backend
+  - name: Install backend dependencies
+    working-directory: ./backend
+    run: npm ci
+
+  - name: Run backend tests
+    working-directory: ./backend
+    run: npm test --if-present
+    env:
+      NODE_ENV: test
+```
+
+# ════════════════════════════════════════
+
+# JOB 2 — DOCKER BUILD & PUSH
+
+# ════════════════════════════════════════
+
 docker-build-push:
-  name: Docker Build & Push
-  runs-on: ubuntu-latest
-  needs: build-and-test
-  if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+name: Docker Build & Push
+runs-on: ubuntu-latest
+needs: build-and-test
+if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
-  steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+```
+steps:
+  - name: Checkout code
+    uses: actions/checkout@v4
 
-    - name: Download frontend build artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: frontend-dist
-        path: dist/
+  - name: Download frontend build artifact
+    uses: actions/download-artifact@v4
+    with:
+      name: frontend-dist
+      path: dist/
 
-    # Login to Docker Hub
-    - name: Login to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+  - name: Login to Docker Hub
+    uses: docker/login-action@v3
+    with:
+      username: ${{ secrets.DOCKERHUB_USERNAME }}
+      password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    # ── Build and push frontend image ──
-    - name: Build frontend Docker image
-      run: |
-        docker build \
-          -t ${{ secrets.DOCKERHUB_USERNAME }}/voipsight-frontend:${{ github.sha }} \
-          -t ${{ secrets.DOCKERHUB_USERNAME }}/voipsight-frontend:latest .
+  # Frontend image
+  - name: Build frontend Docker image
+    run: |
+      docker build \
+        -t ${{ secrets.DOCKERHUB_USERNAME }}/voipsight-frontend:${{ github.sha }} \
+        -t ${{ secrets.DOCKERHUB_USERNAME }}/voipsight-frontend:latest .
 
-    - name: Push frontend image
-      run: |
-        docker push ${{ secrets.DOCKERHUB_USERNAME }}/voipsight-frontend:${{ github.sha }}
-        docker push ${{ secrets.DOCKERHUB_USERNAME }}/voipsight-frontend:latest
+  - name: Push frontend image
+    run: |
+      docker push ${{ secrets.DOCKERHUB_USERNAME }}/voipsight-frontend:${{ github.sha }}
+      docker push ${{ secrets.DOCKERHUB_USERNAME }}/voipsight-frontend:latest
 
-    # ── Build and push backend image ──
-    - name: Build backend Docker image
-      run: |
-        docker build \
-          -t ${{ secrets.DOCKERHUB_USERNAME }}/voipsight-backend:${{ github.sha }} \
-          -t ${{ secrets.DOCKERHUB_USERNAME }}/voipsight-backend:latest \
-          ./backend
+  # Backend image
+  - name: Build backend Docker image
+    run: |
+      docker build \
+        -t ${{ secrets.DOCKERHUB_USERNAME }}/voipsight-backend:${{ github.sha }} \
+        -t ${{ secrets.DOCKERHUB_USERNAME }}/voipsight-backend:latest \
+        ./backend
 
-    - name: Push backend image
-      run: |
-        docker push ${{ secrets.DOCKERHUB_USERNAME }}/voipsight-backend:${{ github.sha }}
-        docker push ${{ secrets.DOCKERHUB_USERNAME }}/voipsight-backend:latest
+  - name: Push backend image
+    run: |
+      docker push ${{ secrets.DOCKERHUB_USERNAME }}/voipsight-backend:${{ github.sha }}
+      docker push ${{ secrets.DOCKERHUB_USERNAME }}/voipsight-backend:latest
+```
 
-    - name: Output image names
-      run: |
-        echo "Frontend: ${{ secrets.DOCKERHUB_USERNAME }}/voipsight-frontend:${{ github.sha }}"
-        echo "Backend:  ${{ secrets.DOCKERHUB_USERNAME }}/voipsight-backend:${{ github.sha }}"
-  # ════════════════════════════════════════
-  # JOB 3 — DEPLOY TO AWS EC2
-  # ════════════════════════════════════════
-  deploy-to-aws:
-    name: Deploy to AWS EC2
-    runs-on: ubuntu-latest
-    needs: docker-build-push
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+# ════════════════════════════════════════
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+# JOB 3 — DEPLOY TO EC2
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ env.AWS_REGION }}
+# ════════════════════════════════════════
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+deploy-to-aws:
+name: Deploy to AWS EC2
+runs-on: ubuntu-latest
+needs: docker-build-push
+if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
-      - name: Deploy to EC2 via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host:     ${{ secrets.EC2_HOST }}
-          username: ec2-user
-          key:      ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            # Login to ECR from EC2
-            aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
-              docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
+```
+steps:
+  - name: Deploy to EC2 via SSH
+    uses: appleboy/ssh-action@v1.0.3
+    with:
+      host: ${{ secrets.EC2_HOST }}
+      username: ec2-user
+      key: ${{ secrets.EC2_SSH_KEY }}
+      script: |
+        docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" -p "${{ secrets.DOCKERHUB_TOKEN }}"
 
-            # Pull latest images
-            docker pull ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_FRONTEND_REPO }}:latest
-            docker pull ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_BACKEND_REPO }}:latest
+        docker pull ${{ secrets.DOCKERHUB_USERNAME }}/voipsight-frontend:latest
+        docker pull ${{ secrets.DOCKERHUB_USERNAME }}/voipsight-backend:latest
 
-            # Stop and remove old containers
-            docker stop voipsight-frontend voipsight-backend 2>/dev/null || true
-            docker rm   voipsight-frontend voipsight-backend 2>/dev/null || true
+        docker stop voipsight-frontend voipsight-backend 2>/dev/null || true
+        docker rm voipsight-frontend voipsight-backend 2>/dev/null || true
 
-            # Create network if not exists
-            docker network create voipsight-net 2>/dev/null || true
+        docker network create voipsight-net 2>/dev/null || true
 
-            # Start backend
-            docker run -d \
-              --name voipsight-backend \
-              --network voipsight-net \
-              --restart unless-stopped \
-              -p 5000:5000 \
-              -e NODE_ENV=production \
-              ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_BACKEND_REPO }}:latest
+        docker run -d \
+          --name voipsight-backend \
+          --network voipsight-net \
+          --restart unless-stopped \
+          -p 5000:5000 \
+          -e NODE_ENV=production \
+          ${{ secrets.DOCKERHUB_USERNAME }}/voipsight-backend:latest
 
-            # Start frontend
-            docker run -d \
-              --name voipsight-frontend \
-              --network voipsight-net \
-              --restart unless-stopped \
-              -p 80:80 \
-              ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_FRONTEND_REPO }}:latest
+        docker run -d \
+          --name voipsight-frontend \
+          --network voipsight-net \
+          --restart unless-stopped \
+          -p 80:80 \
+          ${{ secrets.DOCKERHUB_USERNAME }}/voipsight-frontend:latest
 
-            # Cleanup old images
-            docker image prune -f
+        docker image prune -f
 
-            echo "Deployment complete"
-
-      - name: Verify deployment
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host:     ${{ secrets.EC2_HOST }}
-          username: ec2-user
-          key:      ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            docker ps --filter "name=voipsight"
-            curl -f http://localhost/api/health || echo "Health check failed"
+  - name: Verify deployment
+    uses: appleboy/ssh-action@v1.0.3
+    with:
+      host: ${{ secrets.EC2_HOST }}
+      username: ec2-user
+      key: ${{ secrets.EC2_SSH_KEY }}
+      script: |
+        docker ps --filter "name=voipsight"
