@@ -28,14 +28,18 @@ const Landing = () => {
           {/* Left — Logo + tagline */}
           <div className="flex flex-col">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-gradient-primary flex items-center justify-center">
-                <Phone className="text-white" size={18} />
+              <img src="/birlateams-logo.png" alt="BirlaTeams Logo" className="w-24 h-24" />
+              <div className="flex flex-col">
+                <span className="text-2xl font-bold gradient-text">BirlaTeams</span>
+                <span className="text-xs text-gray-400">Enterprise Communications</span>
               </div>
-              <span className="text-xl font-bold gradient-text">VoIPSight</span>
             </div>
-            <p className="text-xs text-gray-500 mt-1 ml-12">
-              1 browser · 2 extensions · ∞ conversations
-            </p>
+            <div className="flex gap-2 mt-2 ml-12">
+              <span className="text-xs px-2 py-1 rounded-full bg-primary/20 text-primary border border-primary/30">VoIP</span>
+              <span className="text-xs px-2 py-1 rounded-full bg-accent/20 text-accent border border-accent/30">SIP</span>
+              <span className="text-xs px-2 py-1 rounded-full bg-secondary/20 text-secondary border border-secondary/30">WebRTC</span>
+              <span className="text-xs px-2 py-1 rounded-full bg-primary/20 text-primary border border-primary/30">RTP</span>
+            </div>
           </div>
 
           {/* Right — Auth links */}
@@ -63,18 +67,28 @@ const Landing = () => {
           >
             {/* Logo icon */}
             <div className="flex justify-center mb-5">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-[0_0_40px_rgba(91,46,255,0.4)]">
-                <Phone className="text-white" size={26} />
-              </div>
+              <img src="/birlateams-logo.png" alt="BirlaTeams Logo" className="w-64 h-64" />
             </div>
 
             {/* Name */}
             <h1 className="text-5xl lg:text-6xl font-bold mb-3 gradient-text pb-2">
-              VoIPSight
+              BirlaTeams
             </h1>
 
             {/* Tagline */}
             <p className="text-base text-gray-400 mb-2 font-medium">
+              Enterprise Communications
+            </p>
+
+            {/* Tech tags */}
+            <div className="flex justify-center gap-2 mb-4">
+              <span className="text-xs px-3 py-1 rounded-full bg-primary/20 text-primary border border-primary/30">VoIP</span>
+              <span className="text-xs px-3 py-1 rounded-full bg-accent/20 text-accent border border-accent/30">SIP</span>
+              <span className="text-xs px-3 py-1 rounded-full bg-secondary/20 text-secondary border border-secondary/30">WebRTC</span>
+              <span className="text-xs px-3 py-1 rounded-full bg-primary/20 text-primary border border-primary/30">RTP</span>
+            </div>
+
+            <p className="text-sm text-gray-500 mb-2">
               One browser. Two extensions. Infinite conversations.
             </p>
 
@@ -101,7 +115,7 @@ const Landing = () => {
           <p className="text-xs text-gray-600">
             SIP · WebRTC · Asterisk · Real-Time Monitoring
           </p>
-          <p className="text-xs text-gray-600">© 2026 VoIPSight</p>
+          <p className="text-xs text-gray-600">© 2026 BirlaTeams</p>
           <div className="flex items-center gap-4">
             <button 
               onClick={() => setShowPrivacy(true)} 
@@ -142,7 +156,7 @@ const Landing = () => {
               
               <section>
                 <h3 className="text-lg font-semibold mb-2">1. Introduction</h3>
-                <p>VoIPSight ("we", "our", or "us") respects your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information.</p>
+                <p>BirlaTeams ("we", "our", or "us") respects your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information.</p>
               </section>
 
               <section>
@@ -160,7 +174,7 @@ const Landing = () => {
                 <h3 className="text-lg font-semibold mb-2">3. How We Use Your Information</h3>
                 <p>We use the information we collect to:</p>
                 <ul className="list-disc pl-5 mt-2">
-                  <li>Provide and maintain VoIPSight services</li>
+                  <li>Provide and maintain BirlaTeams services</li>
                   <li>Authenticate users and prevent fraud</li>
                   <li>Generate analytics and reports</li>
                   <li>Improve our services</li>
@@ -204,32 +218,32 @@ const Landing = () => {
               
               <section>
                 <h3 className="text-lg font-semibold mb-2">1. Agreement to Terms</h3>
-                <p>By accessing and using VoIPSight, you accept and agree to be bound by and comply with these Terms of Service.</p>
+                <p>By accessing and using BirlaTeams, you accept and agree to be bound by and comply with these Terms of Service.</p>
               </section>
 
               <section>
                 <h3 className="text-lg font-semibold mb-2">2. Use License</h3>
-                <p>Permission is granted to temporarily download one copy of the materials (information or software) on VoIPSight for personal, non-commercial transitory viewing only. This is the grant of a license, not a transfer of title.</p>
+                <p>Permission is granted to temporarily download one copy of the materials (information or software) on BirlaTeams for personal, non-commercial transitory viewing only. This is the grant of a license, not a transfer of title.</p>
               </section>
 
               <section>
                 <h3 className="text-lg font-semibold mb-2">3. Disclaimer</h3>
-                <p>The materials on VoIPSight are provided on an 'as is' basis. VoIPSight makes no warranties, expressed or implied, and hereby disclaims and negates all other warranties including, without limitation, implied warranties or conditions of merchantability, fitness for a particular purpose, or non-infringement of intellectual property or other violation of rights.</p>
+                <p>The materials on BirlaTeams are provided on an 'as is' basis. BirlaTeams makes no warranties, expressed or implied, and hereby disclaims and negates all other warranties including, without limitation, implied warranties or conditions of merchantability, fitness for a particular purpose, or non-infringement of intellectual property or other violation of rights.</p>
               </section>
 
               <section>
                 <h3 className="text-lg font-semibold mb-2">4. Limitations</h3>
-                <p>In no event shall VoIPSight or its suppliers be liable for any damages (including, without limitation, damages for loss of data or profit, or due to business interruption) arising out of the use or inability to use the materials on VoIPSight.</p>
+                <p>In no event shall BirlaTeams or its suppliers be liable for any damages (including, without limitation, damages for loss of data or profit, or due to business interruption) arising out of the use or inability to use the materials on BirlaTeams.</p>
               </section>
 
               <section>
                 <h3 className="text-lg font-semibold mb-2">5. Accuracy of Materials</h3>
-                <p>The materials appearing on VoIPSight could include technical, typographical, or photographic errors. VoIPSight does not warrant that any of the materials on VoIPSight are accurate, complete, or current.</p>
+                <p>The materials appearing on BirlaTeams could include technical, typographical, or photographic errors. BirlaTeams does not warrant that any of the materials on BirlaTeams are accurate, complete, or current.</p>
               </section>
 
               <section>
                 <h3 className="text-lg font-semibold mb-2">6. Modifications</h3>
-                <p>VoIPSight may revise these Terms of Service at any time without notice. By using this website, you are agreeing to be bound by the then current version of these Terms of Service.</p>
+                <p>BirlaTeams may revise these Terms of Service at any time without notice. By using this website, you are agreeing to be bound by the then current version of these Terms of Service.</p>
               </section>
             </div>
           </motion.div>

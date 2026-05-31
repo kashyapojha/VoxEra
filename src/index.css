@@ -18,11 +18,11 @@
   }
   
   .neon-glow {
-    @apply shadow-[0_0_20px_rgba(91,46,255,0.5),0_0_40px_rgba(0,166,255,0.3)];
+    @apply shadow-[0_0_20px_rgba(184,16,15,0.5),0_0_40px_rgba(200,150,10,0.3)];
   }
   
   .neon-glow-hover:hover {
-    @apply shadow-[0_0_30px_rgba(91,46,255,0.7),0_0_60px_rgba(0,166,255,0.5)];
+    @apply shadow-[0_0_30px_rgba(184,16,15,0.7),0_0_60px_rgba(200,150,10,0.5)];
   }
   
   .gradient-text {
@@ -36,7 +36,7 @@
   .gradient-border::before {
     @apply absolute inset-0 rounded-2xl p-[1px];
     content: '';
-    background: linear-gradient(135deg, #5B2EFF 0%, #4A3DFF 40%, #00A6FF 100%);
+    background: linear-gradient(135deg, #B8100F 0%, #96720A 40%, #C8960A 100%);
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
@@ -66,7 +66,7 @@
 .bg-blob-1 {
   width: 400px;
   height: 400px;
-  background: #5B2EFF;
+  background: #B8100F;
   top: 10%;
   left: 10%;
   animation: blob-float 8s ease-in-out infinite;
@@ -75,7 +75,7 @@
 .bg-blob-2 {
   width: 300px;
   height: 300px;
-  background: #00A6FF;
+  background: #C8960A;
   top: 60%;
   right: 10%;
   animation: blob-float 10s ease-in-out infinite reverse;
@@ -84,7 +84,7 @@
 .bg-blob-3 {
   width: 350px;
   height: 350px;
-  background: #4A3DFF;
+  background: #96720A;
   bottom: 10%;
   left: 30%;
   animation: blob-float 12s ease-in-out infinite;

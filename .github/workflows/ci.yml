@@ -47,11 +47,11 @@ jobs:
       - name: Build frontend image
         run: |
           docker build \
-            -t ${{ secrets.DOCKER_USERNAME }}/voipsight-frontend:latest .
+            -t ${{ secrets.DOCKER_USERNAME }}/birlateams-frontend:latest .
 
       - name: Push frontend image
         run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/voipsight-frontend:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/birlateams-frontend:latest
 
   deploy-to-aws:
     name: Deploy to AWS EC2
@@ -67,11 +67,11 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            docker pull ${{ secrets.DOCKER_USERNAME }}/voipsight-frontend:latest
-            docker stop voipsight-frontend || true
-            docker rm voipsight-frontend || true
+            docker pull ${{ secrets.DOCKER_USERNAME }}/birlateams-frontend:latest
+            docker stop birlateams-frontend || true
+            docker rm birlateams-frontend || true
             docker run -d \
-              --name voipsight-frontend \
+              --name birlateams-frontend \
               -p 80:80 \
-              ${{ secrets.DOCKER_USERNAME }}/voipsight-frontend:latest
+              ${{ secrets.DOCKER_USERNAME }}/birlateams-frontend:latest
 

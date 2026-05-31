@@ -1,4 +1,4 @@
-# VoIPSight - SIP Softphone & Call Monitoring Dashboard
+# BirlaTeams - SIP Softphone & Call Monitoring Dashboard
 
 A modern, futuristic SIP softphone application with real-time call monitoring dashboard, built with React + Vite, featuring a dark enterprise SaaS-style UI inspired by cybersecurity and VoIP monitoring dashboards.
 
@@ -90,7 +90,7 @@ npm run dev
 ## Project Structure
 
 ```
-VoIPSight/
+BirlaTeams/
 ├── src/
 │   ├── components/
 │   │   ├── Analytics/
@@ -255,7 +255,7 @@ npm run build
 
 ## License
 
-© 2026 VoIPSight. All rights reserved.
+© 2026 BirlaTeams. All rights reserved.
 
 ## Support
 
@@ -308,7 +308,7 @@ Notes / Troubleshooting:
 - If audio autoplay is blocked by the browser, click anywhere in the page to resume playback (SIPContext installs a one-time click resume handler).
 - If you see missing data, verify the backend emits the listed socket events and that `VITE_BACKEND_URL` points to the correct host.
 
-# VoIPSight — DevOps Setup Guide
+# BirlaTeams — DevOps Setup Guide
 
 ## Architecture
 
@@ -323,7 +323,7 @@ GitHub Push → CI/CD Pipeline
                 ↓
          Deploy to AWS EC2
                 ↓
-         VoIPSight Live at http://EC2_IP
+         BirlaTeams Live at http://EC2_IP
 ```
 
 ---
@@ -331,7 +331,7 @@ GitHub Push → CI/CD Pipeline
 ## Folder Structure
 
 ```
-VoIPSight/
+BirlaTeams/
 ├── Dockerfile                        ← Frontend React image
 ├── docker-compose.yml                ← Local dev + prod compose
 ├── nginx/

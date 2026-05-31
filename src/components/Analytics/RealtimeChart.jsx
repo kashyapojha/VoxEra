@@ -86,12 +86,12 @@ const RealtimeChart = () => {
           <AreaChart data={data} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id="colorCalls" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#5B2EFF" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#5B2EFF" stopOpacity={0} />
+                <stop offset="5%" stopColor="#B8100F" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#B8100F" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="colorLatency" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#00A6FF" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#00A6FF" stopOpacity={0} />
+                <stop offset="5%" stopColor="#C8960A" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#C8960A" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
@@ -116,19 +116,19 @@ const RealtimeChart = () => {
               ]}
               labelFormatter={(label) => `Time: ${label}`}
             />
-            <Area type="monotone" dataKey="calls" stroke="#5B2EFF" fillOpacity={1} fill="url(#colorCalls)" name="calls" />
-            <Area type="monotone" dataKey="latency" stroke="#00A6FF" fillOpacity={1} fill="url(#colorLatency)" name="latency" />
+            <Area type="monotone" dataKey="calls" stroke="#B8100F" fillOpacity={1} fill="url(#colorCalls)" name="calls" />
+            <Area type="monotone" dataKey="latency" stroke="#C8960A" fillOpacity={1} fill="url(#colorLatency)" name="latency" />
           </AreaChart>
         </ResponsiveContainer>
       </div>
 
       <div className="flex gap-4 mt-3">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-[#5B2EFF]" />
+          <div className="w-3 h-3 rounded-full bg-[#B8100F]" />
           <span className="text-xs text-gray-400">Active Calls</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-[#00A6FF]" />
+          <div className="w-3 h-3 rounded-full bg-[#C8960A]" />
           <span className="text-xs text-gray-400">Latency (ms)</span>
         </div>
       </div>

@@ -138,10 +138,15 @@ const Login = () => {
       >
         <div className="glass-card p-8">
           <div className="flex flex-col items-center mb-8">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-primary flex items-center justify-center mb-4 neon-glow">
-              <Phone className="text-white" size={32} />
+            <img src="/birlateams-logo.png" alt="BirlaTeams Logo" className="w-48 h-48 mb-4" />
+            <h1 className="text-3xl font-bold gradient-text mb-1">BirlaTeams</h1>
+            <p className="text-sm text-gray-400 mb-2">Enterprise Communications</p>
+            <div className="flex gap-2 mb-2">
+              <span className="text-xs px-2 py-1 rounded-full bg-primary/20 text-primary border border-primary/30">VoIP</span>
+              <span className="text-xs px-2 py-1 rounded-full bg-accent/20 text-accent border border-accent/30">SIP</span>
+              <span className="text-xs px-2 py-1 rounded-full bg-secondary/20 text-secondary border border-secondary/30">WebRTC</span>
+              <span className="text-xs px-2 py-1 rounded-full bg-primary/20 text-primary border border-primary/30">RTP</span>
             </div>
-            <h1 className="text-2xl font-bold gradient-text">VoIPSight</h1>
             <p className="text-gray-400 mt-2">{isSignUp ? 'Create your account' : 'Sign in to your account'}</p>
           </div>
 
@@ -287,7 +292,7 @@ const Login = () => {
           </div>
 
           <p className="text-center text-gray-500 text-sm mt-6">
-            © 2026 VoIPSight. All rights reserved.
+            © 2026 BirlaTeams. All rights reserved.
           </p>
         </div>
       </motion.div>

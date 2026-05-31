@@ -38,11 +38,12 @@ const Navbar = ({ onMenuClick, isMobileMenuOpen }) => {
             {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
           <Link to="/dashboard" className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center">
-              <Phone className="text-white" size={20} />
+            <img src="/birlateams-logo.png" alt="BirlaTeams Logo" className="w-24 h-24" />
+            <div className="flex flex-col">
+              <span className="text-2xl font-bold gradient-text">BirlaTeams</span>
+              <span className="text-xs text-gray-400">Enterprise Communications</span>
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-xl font-bold gradient-text">VoIPSight</span>
               <span className={`text-sm px-2 py-1 rounded-full ${isRegistered ? 'bg-green-500/20 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
                 {isRegistered ? 'Online' : 'Offline'}
               </span>
