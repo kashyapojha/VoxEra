@@ -10,7 +10,6 @@ const ActiveCalls = () => {
   const [activeCalls, setActiveCalls] = useState([])
 
   useEffect(() => {
-    // fetch initial active calls
     let mounted = true
     fetch(`${backendUrl.replace(/\/$/, '')}/api/active-calls`)
       .then(res => res.json())
@@ -33,9 +32,18 @@ const ActiveCalls = () => {
   }, [socket, backendUrl])
 
   const formatDuration = (seconds) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+    const secs = Math.max(0, Number(seconds) || 0)
+    const mins = Math.floor(secs / 60)
+    const rem = secs % 60
+    return `${mins.toString().padStart(2, '0')}:${rem.toString().padStart(2, '0')}`
+  }
+
+  const displayDuration = (call) => {
+    if (call.status === 'ringing' || call.status === 'calling') return 'Ringing...'
+    if (call.connectedAt) {
+      return formatDuration(Math.floor((Date.now() - call.connectedAt) / 1000))
+    }
+    return formatDuration(call.duration)
   }
 
   const getStatusColor = (status) => {
@@ -55,15 +63,40 @@ const ActiveCalls = () => {
     return direction === 'inbound' ? 'text-blue-400' : 'text-purple-400'
   }
 
-  // Merge local activeCalls with current session state for accurate UI
   const mergedCalls = [...activeCalls]
-  if (currentCall) {
-    const found = mergedCalls.find(c => c.id === 'local')
-    if (!found) mergedCalls.unshift({ id: 'local', caller: currentCall.remote_identity?.uri?.user || 'Local', duration: callDuration || 0, status: callStatus || 'connected', direction: 'outbound' })
+
+  if (currentCall && callStatus === 'connected') {
+    const remote = currentCall.remote_identity?.uri?.user || 'Unknown'
+    const callId = currentCall.request?.call_id || currentCall.id
+    const idx = mergedCalls.findIndex(c => c.id === callId)
+    const localEntry = {
+      id: callId || 'local',
+      caller: remote,
+      callee: '',
+      duration: callDuration,
+      connectedAt: null,
+      status: 'connected',
+      direction: 'outbound',
+    }
+    if (idx >= 0) {
+      mergedCalls[idx] = { ...mergedCalls[idx], duration: mergedCalls[idx].duration ?? callDuration }
+    } else {
+      mergedCalls.unshift(localEntry)
+    }
   }
+
   if (incomingCall) {
-    const found = mergedCalls.find(c => c.id === 'incoming')
-    if (!found) mergedCalls.unshift({ id: 'incoming', caller: incomingCall.remote_identity?.uri?.user || 'Unknown', duration: 0, status: 'ringing', direction: 'inbound' })
+    const remote = incomingCall.remote_identity?.uri?.user || 'Unknown'
+    const callId = incomingCall.request?.call_id || 'incoming'
+    if (!mergedCalls.find(c => c.id === callId)) {
+      mergedCalls.unshift({
+        id: callId,
+        caller: remote,
+        duration: 0,
+        status: 'ringing',
+        direction: 'inbound',
+      })
+    }
   }
 
   return (
@@ -94,9 +127,11 @@ const ActiveCalls = () => {
                     <User size={20} className="text-accent" />
                   </div>
                   <div>
-                    <p className="font-semibold text-white">{call.caller}</p>
+                    <p className="font-semibold text-white">
+                      {call.caller}{call.callee ? ` → ${call.callee}` : ''}
+                    </p>
                     <p className={`text-xs ${getDirectionColor(call.direction)}`}>
-                      {call.direction}
+                      {call.direction || 'call'}
                     </p>
                   </div>
                 </div>
@@ -106,11 +141,9 @@ const ActiveCalls = () => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-gray-400">
                   <Clock size={14} />
-                  <span className="text-sm">
-                    {call.status === 'ringing' ? 'Ringing...' : formatDuration(call.duration)}
-                  </span>
+                  <span className="text-sm font-mono">{displayDuration(call)}</span>
                 </div>
-                <button className="p-2 hover:bg-red-500/20 rounded-lg transition-colors">
+                <button type="button" className="p-2 hover:bg-red-500/20 rounded-lg transition-colors">
                   <PhoneOff size={16} className="text-red-400" />
                 </button>
               </div>

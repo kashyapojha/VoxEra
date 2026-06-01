@@ -10,6 +10,7 @@ import Softphone from './pages/Softphone'
 import Analytics from './pages/Analytics'
 import Login from './pages/Login'
 import Settings from './pages/Settings'
+import Signup from './pages/Signup'
 
 function App() {
   return (
@@ -18,8 +19,9 @@ function App() {
         <SocketProvider>
           <SIPProvider>
             <Routes>
-              <Route path="/" element={<Landing />} />
-              <Route path="/login" element={<Login />} />
+              <Route path="/"        element={<Landing />} />
+              <Route path="/login"   element={<Login />} />
+              <Route path="/signup"  element={<Signup />} />
               <Route
                 path="/dashboard"
                 element={

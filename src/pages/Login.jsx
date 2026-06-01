@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext'
 
 const Login = () => {
   const navigate = useNavigate()
-  const { login } = useAuth()
+  const { login, signup } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [isSignUp, setIsSignUp] = useState(false)
@@ -16,6 +16,7 @@ const Login = () => {
   })
   const [signUpData, setSignUpData] = useState({
     name: '',
+    department: '',
     email: '',
     password: '',
     confirmPassword: ''
@@ -95,32 +96,18 @@ const Login = () => {
     }
 
     setIsLoading(true)
-    try {
-      const response = await fetch(`${window.location.origin}/api/signup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: signUpData.name,
-          email: signUpData.email,
-          password: signUpData.password
-        })
-      })
+    const result = await signup(
+      signUpData.name,
+      signUpData.email,
+      signUpData.password,
+      signUpData.department
+    )
+    setIsLoading(false)
 
-      const data = await response.json()
-
-      if (response.ok) {
-        setError('')
-        setFormData({ email: signUpData.email, password: signUpData.password })
-        setIsSignUp(false)
-        setSignUpData({ name: '', email: '', password: '', confirmPassword: '' })
-        alert('Account created successfully! Please log in.')
-      } else {
-        setError(data.error || 'Signup failed')
-      }
-    } catch (err) {
-      setError('Signup failed. Please try again.')
-    } finally {
-      setIsLoading(false)
+    if (result.success) {
+      navigate('/dashboard')
+    } else {
+      setError(result.error || 'Signup failed')
     }
   }
 
@@ -138,8 +125,8 @@ const Login = () => {
       >
         <div className="glass-card p-8">
           <div className="flex flex-col items-center mb-8">
-            <img src="/birlateams-logo.png" alt="BirlaTeams Logo" className="w-48 h-48 mb-4" />
-            <h1 className="text-3xl font-bold gradient-text mb-1">BirlaTeams</h1>
+            <img src="/voxera-logo.png" alt="VoxEra Logo" className="w-48 h-48 mb-4" />
+            <h1 className="text-3xl font-bold gradient-text mb-1">VoxEra</h1>
             <p className="text-sm text-gray-400 mb-2">Enterprise Communications</p>
             <div className="flex gap-2 mb-2">
               <span className="text-xs px-2 py-1 rounded-full bg-primary/20 text-primary border border-primary/30">VoIP</span>
@@ -159,23 +146,43 @@ const Login = () => {
             )}
 
             {isSignUp && (
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Full Name
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    name="name"
-                    value={signUpData.name}
-                    onChange={handleSignUpChange}
-                    placeholder="John Doe"
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-accent/50 transition-colors"
-                    required
-                    disabled={isLoading}
-                  />
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Full Name
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      name="name"
+                      value={signUpData.name}
+                      onChange={handleSignUpChange}
+                      placeholder="John Doe"
+                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-accent/50 transition-colors"
+                      required
+                      disabled={isLoading}
+                    />
+                  </div>
                 </div>
-              </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Department
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      name="department"
+                      value={signUpData.department}
+                      onChange={handleSignUpChange}
+                      placeholder="Engineering"
+                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-accent/50 transition-colors"
+                      required
+                      disabled={isLoading}
+                    />
+                  </div>
+                </div>
+              </>
             )}
 
             <div>
@@ -282,7 +289,7 @@ const Login = () => {
                   setIsSignUp(!isSignUp)
                   setError('')
                   setFormData({ email: '', password: '' })
-                  setSignUpData({ name: '', email: '', password: '', confirmPassword: '' })
+                  setSignUpData({ name: '', department: '', email: '', password: '', confirmPassword: '' })
                 }} 
                 className="text-accent hover:underline cursor-pointer font-semibold"
               >
@@ -292,7 +299,7 @@ const Login = () => {
           </div>
 
           <p className="text-center text-gray-500 text-sm mt-6">
-            © 2026 BirlaTeams. All rights reserved.
+            © 2026 VoxEra. All rights reserved.
           </p>
         </div>
       </motion.div>

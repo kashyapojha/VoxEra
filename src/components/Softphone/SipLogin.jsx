@@ -1,15 +1,11 @@
 /**
  * SipLogin.jsx
- * Dynamic SIP login form — user enters their own extension and password.
- * Replaces hardcoded .env credentials.
- *
- * Each user registers their own SIP extension dynamically.
- * Multiple browser tabs can register different extensions simultaneously.
+ * Manual SIP registration — extension and password entered by the user.
  */
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Phone, Lock, User, Wifi, WifiOff, Loader } from 'lucide-react'
+import { Phone, Lock, User, Wifi, Loader } from 'lucide-react'
 import { useSip } from '../../context/SIPContext'
 
 const SipLogin = () => {
@@ -23,7 +19,7 @@ const SipLogin = () => {
     connectionStatus
   } = useSip()
 
-  const [ext,  setExt]  = useState(localStorage.getItem('sip_ext') || '')
+  const [ext, setExt] = useState(() => localStorage.getItem('sip_ext') || '')
   const [pass, setPass] = useState('')
 
   const handleRegister = (e) => {
@@ -37,7 +33,6 @@ const SipLogin = () => {
     setPass('')
   }
 
-  // ── Status indicator ──
   const statusConfig = {
     connected:    { color: 'text-green-400',  bg: 'bg-green-500/15',  border: 'border-green-500/30',  dot: 'bg-green-400',  label: 'Connected'    },
     connecting:   { color: 'text-amber-400',  bg: 'bg-amber-500/15',  border: 'border-amber-500/30',  dot: 'bg-amber-400',  label: 'Connecting...' },
@@ -53,8 +48,6 @@ const SipLogin = () => {
       className="w-full max-w-sm mx-auto"
     >
       <div className="glass-card rounded-2xl border border-white/8 p-6">
-
-        {/* Header */}
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center">
             <Phone size={20} className="text-white" />
@@ -63,14 +56,12 @@ const SipLogin = () => {
             <h3 className="font-semibold text-white text-sm">SIP Registration</h3>
             <p className="text-xs text-gray-500">Connect to Asterisk PBX</p>
           </div>
-          {/* Connection status badge */}
           <span className={`ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${sc.bg} ${sc.border} ${sc.color}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${sc.dot} ${connectionStatus === 'connecting' ? 'animate-pulse' : ''}`} />
             {sc.label}
           </span>
         </div>
 
-        {/* Registered state */}
         {isRegistered ? (
           <div className="space-y-4">
             <div className="flex items-center gap-3 p-3 rounded-xl bg-green-500/10 border border-green-500/20">
@@ -88,10 +79,7 @@ const SipLogin = () => {
             </button>
           </div>
         ) : (
-          /* Login form */
           <form onSubmit={handleRegister} className="space-y-4">
-
-            {/* Extension field */}
             <div>
               <label className="block text-xs text-gray-400 mb-1.5 font-medium">
                 SIP Extension
@@ -110,7 +98,6 @@ const SipLogin = () => {
               </div>
             </div>
 
-            {/* Password field */}
             <div>
               <label className="block text-xs text-gray-400 mb-1.5 font-medium">
                 SIP Password
@@ -129,14 +116,12 @@ const SipLogin = () => {
               </div>
             </div>
 
-            {/* Error message */}
             {registrationError && (
               <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
                 {registrationError}
               </p>
             )}
 
-            {/* Submit button */}
             <button
               type="submit"
               disabled={isRegistering || !ext.trim() || !pass.trim()}
@@ -154,7 +139,6 @@ const SipLogin = () => {
                 </>
               )}
             </button>
-
           </form>
         )}
       </div>

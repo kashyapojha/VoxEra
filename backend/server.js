@@ -1,310 +1,397 @@
-const express    = require("express");
-const http       = require("http");
-const { Server } = require("socket.io");
-const cors       = require("cors");
-const path       = require("path");
+/**
+ * server.js — VoxEra Backend
+ * - User signup / login (JWT) — no auto extension assignment
+ * - Feedback, calls monitoring, Socket.io realtime
+ */
 
-require('dotenv').config()
+const express    = require('express')
+const http       = require('http')
+const { Server } = require('socket.io')
+const cors       = require('cors')
+const bcrypt     = require('bcryptjs')
+const jwt        = require('jsonwebtoken')
 
-// ── APP SETUP ──
-const app    = express();
-const server = http.createServer(app);
-const io     = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
+const app    = express()
+const server = http.createServer(app)
+const io     = new Server(server, { cors: { origin: '*' } })
+
+app.use(cors())
+app.use(express.json())
+
+const JWT_SECRET = process.env.JWT_SECRET || 'voxera-secret-2026'
+
+// ── In-memory stores (replace with PostgreSQL in production) ──
+const usersById    = new Map() // id → user object
+const usersByEmail = new Map() // email → user id
+const feedbacks    = []
+const calls        = []
+const activeCalls  = new Map() // callId → call details
+
+function enrichActiveCall(callObj) {
+  const duration = callObj.connectedAt
+    ? Math.floor((Date.now() - callObj.connectedAt) / 1000)
+    : 0
+  return { ...callObj, duration }
+}
+
+function broadcastActiveCalls() {
+  io.emit('active_calls_update', Array.from(activeCalls.values()).map(enrichActiveCall))
+}
+
+function getCallId(payload) {
+  return payload?.id || payload?.callId || null
+}
+
+// ════════════════════════════════════════
+// AUTH ROUTES
+// ════════════════════════════════════════
+
+app.post('/api/auth/signup', async (req, res) => {
+  try {
+    const { name, email, password, department } = req.body
+
+    if (!name || !email || !password || !department) {
+      return res.status(400).json({ error: 'All fields are required' })
+    }
+
+    if (usersByEmail.has(email)) {
+      return res.status(409).json({ error: 'Email already registered' })
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10)
+    const id = Date.now().toString()
+
+    const user = {
+      id,
+      name,
+      email,
+      password: hashedPassword,
+      department,
+      createdAt: new Date().toISOString(),
+      status: 'available',
+    }
+
+    usersById.set(id, user)
+    usersByEmail.set(email, id)
+
+    console.info(`[AUTH] New user: ${name} | Dept: ${department}`)
+
+    const token = jwt.sign({ userId: id, email, name, department }, JWT_SECRET, { expiresIn: '24h' })
+
+    return res.status(201).json({
+      message: 'Account created successfully',
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        department: user.department,
+      },
+    })
+  } catch (err) {
+    console.error('[AUTH] Signup error:', err)
+    return res.status(500).json({ error: 'Server error' })
   }
-});
+})
 
-app.use(cors());
-app.use(express.json());
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body
 
-// ── IN-MEMORY STORE ──
-let callHistory  = [];
-let activeCalls  = {};
-let sipLog       = [];
-let extensions   = [
-  { ext: "101", name: "IT Support",    department: "IT",   status: "available" },
-  { ext: "102", name: "HR Executive",  department: "HR",   status: "available" },
-  { ext: "103", name: "Plant Manager", department: "Ops",  status: "available" },
-  { ext: "104", name: "Security Desk", department: "Security", status: "available" },
-  { ext: "105", name: "Admin Office",  department: "Admin",status: "available" },
-];
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password required' })
+    }
 
-// ── HELPER — Add SIP Log Entry ──
-function addSipLog(method, from, to, detail) {
-  const entry = {
-    id:        Date.now(),
-    method,
-    from:      from || "unknown",
-    to:        to   || "unknown",
-    detail:    detail || "",
-    timestamp: new Date().toLocaleTimeString()
-  };
-  sipLog.unshift(entry);
-  if (sipLog.length > 100) sipLog.pop(); // keep last 100
-  io.emit("sip_event", entry);
-  return entry;
-}
+    const userId = usersByEmail.get(email)
+    if (!userId) {
+      return res.status(401).json({ error: 'Invalid email or password' })
+    }
 
-// ── HELPER — Format Duration ──
-function formatDuration(ms) {
-  const s = Math.floor(ms / 1000);
-  const m = Math.floor(s / 60);
-  return `${String(m).padStart(2,"0")}:${String(s % 60).padStart(2,"0")}`;
-}
+    const user = usersById.get(userId)
+    const valid = await bcrypt.compare(password, user.password)
+    if (!valid) {
+      return res.status(401).json({ error: 'Invalid email or password' })
+    }
 
-// ═══════════════════════════════════════
-//              REST APIs
-// ═══════════════════════════════════════
+    const token = jwt.sign(
+      { userId: user.id, email: user.email, name: user.name, department: user.department },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    )
 
-// Health check
-app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", message: "VoIPSight backend running", time: new Date() });
-});
+    console.info(`[AUTH] Login: ${user.name}`)
 
-// Get all extensions
-app.get("/api/extensions", (req, res) => {
-  res.json(extensions);
-});
+    return res.json({
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        department: user.department,
+      },
+    })
+  } catch (err) {
+    console.error('[AUTH] Login error:', err)
+    return res.status(500).json({ error: 'Server error' })
+  }
+})
 
-// Get call history
-app.get("/api/calls", (req, res) => {
-  res.json(callHistory);
-});
+app.get('/api/auth/me', (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '')
+  if (!token) return res.status(401).json({ error: 'No token' })
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET)
+    const user = usersById.get(decoded.userId)
+    if (!user) return res.status(404).json({ error: 'User not found' })
+    return res.json({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      department: user.department,
+    })
+  } catch {
+    return res.status(401).json({ error: 'Invalid token' })
+  }
+})
 
-// Get active calls
-app.get("/api/active-calls", (req, res) => {
-  res.json(Object.values(activeCalls));
-});
+// GET /api/users/directory — registered app users (no SIP extensions)
+app.get('/api/users/directory', (req, res) => {
+  const directory = []
+  usersById.forEach((user) => {
+    directory.push({
+      name: user.name,
+      department: user.department,
+      email: user.email,
+      status: user.status,
+    })
+  })
+  return res.json(directory)
+})
 
-// Get SIP log
-app.get("/api/sip-log", (req, res) => {
-  res.json(sipLog);
-});
+// Legacy alias
+app.get('/api/users/extensions', (req, res) => {
+  return res.redirect(307, '/api/users/directory')
+})
 
-// Get dashboard stats
-app.get("/api/stats", (req, res) => {
+// ════════════════════════════════════════
+// FEEDBACK ROUTES
+// ════════════════════════════════════════
+
+app.post('/api/feedback', (req, res) => {
+  const { name, department, rating, message } = req.body
+
+  if (!name || !message || !rating) {
+    return res.status(400).json({ error: 'Name, rating and message are required' })
+  }
+
+  const feedback = {
+    id: Date.now().toString(),
+    name: name.trim(),
+    department: department || 'IT Department',
+    rating: parseInt(rating),
+    message: message.trim().slice(0, 200),
+    createdAt: new Date().toISOString(),
+    initials: name.trim().split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2),
+  }
+
+  feedbacks.unshift(feedback)
+  if (feedbacks.length > 100) feedbacks.pop()
+
+  io.emit('new_feedback', feedback)
+  return res.status(201).json({ message: 'Feedback submitted', feedback })
+})
+
+app.get('/api/feedback', (req, res) => {
+  return res.json(feedbacks)
+})
+
+// ════════════════════════════════════════
+// CALLS & MONITORING ROUTES
+// ════════════════════════════════════════
+
+app.get('/api/calls', (req, res) => {
+  return res.json(calls)
+})
+
+app.get('/api/active-calls', (req, res) => {
+  return res.json(Array.from(activeCalls.values()).map(enrichActiveCall))
+})
+
+app.post('/api/calls', (req, res) => {
+  const { caller, callee, direction, status, duration } = req.body
+  if (!caller) return res.status(400).json({ error: 'Caller is required' })
+
+  const callObj = {
+    id: Date.now().toString(),
+    caller,
+    callee: callee || 'Unknown',
+    direction: direction || 'outbound',
+    status: status || 'completed',
+    duration: parseInt(duration || 0),
+    timestamp: new Date().toISOString(),
+  }
+
+  calls.unshift(callObj)
+  if (calls.length > 200) calls.pop()
+
+  io.emit('call_history_update', calls.slice(0, 50))
+
+  const totalCalls = calls.length
+  const completedCalls = calls.filter((c) => c.status === 'completed').length
+  io.emit('stats_update', { totalCalls, completedCalls })
+
+  return res.status(201).json(callObj)
+})
+
+app.get('/api/health', (req, res) => {
   res.json({
-    totalCalls:    callHistory.length,
-    activeCalls:   Object.keys(activeCalls).length,
-    totalExtensions: extensions.length,
-    availableExtensions: extensions.filter(e => e.status === "available").length,
-  });
-});
+    status: 'ok',
+    service: 'VoxEra',
+    users: usersById.size,
+    time: new Date(),
+  })
+})
 
-// Post SIP event from browser
-app.post("/api/sip-event", (req, res) => {
-  const { method, from, to, detail } = req.body;
-  const entry = addSipLog(method, from, to, detail);
-  res.json({ success: true, entry });
-});
+app.get('/api/stats', (req, res) => {
+  const totalCalls = calls.length
+  const completedCalls = calls.filter((c) => c.status === 'completed').length
+  res.json({
+    totalUsers: usersById.size,
+    totalFeedback: feedbacks.length,
+    avgRating:
+      feedbacks.length > 0
+        ? (feedbacks.reduce((s, f) => s + f.rating, 0) / feedbacks.length).toFixed(1)
+        : '0.0',
+    totalCalls,
+    completedCalls,
+  })
+})
 
-// ═══════════════════════════════════════
-//           SOCKET.IO EVENTS
-// ═══════════════════════════════════════
+// ════════════════════════════════════════
+// SOCKET.IO
+// ════════════════════════════════════════
 
-io.on("connection", (socket) => {
-  console.log(`[SOCKET] Client connected: ${socket.id}`);
+io.on('connection', (socket) => {
+  console.info(`[SOCKET] Connected: ${socket.id}`)
 
-  // Send current state to newly connected client
-  socket.emit("init", {
-    sipLog,
-    activeCalls: Object.values(activeCalls),
-    extensions,
-    stats: {
-      totalCalls:          callHistory.length,
-      activeCalls:         Object.keys(activeCalls).length,
-      totalExtensions:     extensions.length,
-      availableExtensions: extensions.filter(e => e.status === "available").length,
-    }
-  });
+  socket.emit('feedback_init', feedbacks.slice(0, 20))
+  socket.emit('active_calls_update', Array.from(activeCalls.values()).map(enrichActiveCall))
+  socket.emit('call_history_update', calls.slice(0, 50))
 
-  // ── SIP REGISTER ──
-  socket.on("sip_register", (data) => {
-    const { ext, name } = data;
-    console.log(`[SIP] REGISTER — ext ${ext}`);
-    addSipLog("REGISTER", ext, "Asterisk", `${name || ext} registered successfully`);
+  socket.on('call_start', (payload) => {
+    const id = getCallId(payload)
+    if (!id) return
 
-    // Update extension status
-    const exObj = extensions.find(e => e.ext === ext);
-    if (exObj) exObj.status = "available";
-    io.emit("extension_update", extensions);
-  });
-
-  // ── SIP INVITE (outgoing call) ──
-  socket.on("sip_invite", (data) => {
-    const { from, to, callId } = data;
-    console.log(`[SIP] INVITE — ${from} → ${to}`);
-
-    activeCalls[callId] = {
-      callId,
-      from,
-      to,
-      startTime: Date.now(),
-      status: "ringing"
-    };
-
-    addSipLog("INVITE",   from, to, `Call initiated`);
-
-    setTimeout(() => {
-      addSipLog("TRYING",   "Asterisk", to, `Processing call`);
-      io.emit("call_trying", { callId, from, to });
-    }, 300);
-
-    setTimeout(() => {
-      addSipLog("RINGING",  "Asterisk", from, `Remote party ringing`);
-      io.emit("call_ringing", { callId, from, to });
-    }, 800);
-
-    // Update extension status
-    const fromExt = extensions.find(e => e.ext === from);
-    if (fromExt) fromExt.status = "busy";
-    io.emit("extension_update", extensions);
-    io.emit("active_calls_update", Object.values(activeCalls));
-  });
-
-  // ── SIP ANSWER (200 OK) ──
-  socket.on("sip_answer", (data) => {
-    const { from, to, callId } = data;
-    console.log(`[SIP] 200 OK — ${from} ↔ ${to}`);
-
-    if (activeCalls[callId]) {
-      activeCalls[callId].status    = "connected";
-      activeCalls[callId].answeredAt = Date.now();
+    let callObj = activeCalls.get(id)
+    if (!callObj) {
+      callObj = {
+        id,
+        caller: payload.caller || 'Unknown',
+        callee: payload.callee || 'Unknown',
+        direction: payload.direction || 'outbound',
+        status: payload.status || 'calling',
+        connectedAt: null,
+        timestamp: new Date().toISOString(),
+      }
+      activeCalls.set(id, callObj)
+    } else {
+      if (payload.caller && payload.caller !== 'Me') callObj.caller = payload.caller
+      if (payload.callee && payload.callee !== 'Me') callObj.callee = payload.callee
+      callObj.status = payload.status || callObj.status
     }
 
-    addSipLog("200 OK", to, from, `Call connected — audio stream started`);
-    addSipLog("ACK",    from, to,  `Call acknowledged`);
+    console.info(`[SOCKET] Call Start: ${callObj.caller} -> ${callObj.callee} [${callObj.status}]`)
+    broadcastActiveCalls()
+  })
 
-    const toExt = extensions.find(e => e.ext === to);
-    if (toExt) toExt.status = "busy";
+  // First establish sets shared connectedAt — both parties sync duration from this
+  socket.on('call_establish', (payload) => {
+    const id = getCallId(payload)
+    if (!id) return
 
-    io.emit("call_connected",      { callId, from, to });
-    io.emit("extension_update",    extensions);
-    io.emit("active_calls_update", Object.values(activeCalls));
-  });
-
-  // ── SIP BYE (hangup) ──
-  socket.on("sip_bye", (data) => {
-    const { from, to, callId, duration, qualityMetrics } = data;
-    console.log(`[SIP] BYE — ${from} ↔ ${to}`);
-
-    const call = activeCalls[callId];
-    const dur  = call?.answeredAt
-      ? formatDuration(Date.now() - call.answeredAt)
-      : "00:00";
-
-    // Save to call history
-    callHistory.unshift({
-      id:         Date.now(),
-      caller:     from,
-      receiver:   to,
-      startTime:  call?.startTime
-        ? new Date(call.startTime).toLocaleTimeString()
-        : new Date().toLocaleTimeString(),
-      duration:   duration || dur,
-      status:     "completed",
-      quality:    qualityMetrics || null
-    });
-
-    if (callHistory.length > 200) callHistory.pop();
-
-    addSipLog("BYE",    from, to, `Call ended — duration ${duration || dur}`);
-    addSipLog("200 OK", to,   from, `Call terminated`);
-
-    // Free up extensions
-    delete activeCalls[callId];
-    const fromExt = extensions.find(e => e.ext === from);
-    const toExt   = extensions.find(e => e.ext === to);
-    if (fromExt) fromExt.status = "available";
-    if (toExt)   toExt.status   = "available";
-
-    io.emit("call_ended",          { callId, from, to, duration: duration || dur });
-    io.emit("call_history_update", callHistory.slice(0, 20));
-    io.emit("extension_update",    extensions);
-    io.emit("active_calls_update", Object.values(activeCalls));
-    io.emit("stats_update", {
-      totalCalls:          callHistory.length,
-      activeCalls:         Object.keys(activeCalls).length,
-      totalExtensions:     extensions.length,
-      availableExtensions: extensions.filter(e => e.status === "available").length,
-    });
-  });
-
-  // ── RTP QUALITY METRICS ──
-  socket.on("rtp_metrics", (data) => {
-    const { callId, jitter, packetLoss, latency, bitrate } = data;
-    if (activeCalls[callId]) {
-      activeCalls[callId].quality = { jitter, packetLoss, latency, bitrate };
+    let callObj = activeCalls.get(id)
+    if (!callObj) {
+      callObj = {
+        id,
+        caller: payload.caller || 'Unknown',
+        callee: payload.callee || 'Unknown',
+        direction: payload.direction || 'outbound',
+        status: 'connected',
+        connectedAt: null,
+        timestamp: new Date().toISOString(),
+      }
+      activeCalls.set(id, callObj)
     }
-    io.emit("quality_update", { callId, jitter, packetLoss, latency, bitrate });
-  });
 
-  // ── HOLD ──
-  socket.on("sip_hold", (data) => {
-    const { from, to, callId } = data;
-    if (activeCalls[callId]) activeCalls[callId].status = "on-hold";
-    addSipLog("re-INVITE", from, to, `Call placed on hold`);
-    io.emit("call_held",           { callId });
-    io.emit("active_calls_update", Object.values(activeCalls));
-  });
+    callObj.status = 'connected'
+    if (payload.caller && payload.caller !== 'Me') callObj.caller = payload.caller
+    if (payload.callee && payload.callee !== 'Me') callObj.callee = payload.callee
 
-  // ── RESUME ──
-  socket.on("sip_resume", (data) => {
-    const { from, to, callId } = data;
-    if (activeCalls[callId]) activeCalls[callId].status = "connected";
-    addSipLog("re-INVITE", from, to, `Call resumed`);
-    io.emit("call_resumed",        { callId });
-    io.emit("active_calls_update", Object.values(activeCalls));
-  });
+    if (!callObj.connectedAt) {
+      callObj.connectedAt = Date.now()
+      io.emit('call_connected', { id, connectedAt: callObj.connectedAt })
+      console.info(`[SOCKET] Call Connected (sync): ${callObj.caller} -> ${callObj.callee}`)
+    }
 
-  // ── MUTE ──
-  socket.on("sip_mute", (data) => {
-    addSipLog("INFO", data.from, data.to, `Microphone muted`);
-  });
+    broadcastActiveCalls()
+  })
 
-  // ── UNMUTE ──
-  socket.on("sip_unmute", (data) => {
-    addSipLog("INFO", data.from, data.to, `Microphone unmuted`);
-  });
+  socket.on('call_end', (payload) => {
+    const id = getCallId(payload)
+    if (!id) return
 
-  // ── DISCONNECT ──
-  socket.on("disconnect", () => {
-    console.log(`[SOCKET] Client disconnected: ${socket.id}`);
-  });
-});
+    const callObj = activeCalls.get(id)
+    if (!callObj) return
 
-// ── START SERVER ──
-const PORT = process.env.PORT || 5000;
+    activeCalls.delete(id)
+
+    let finalDuration = parseInt(payload.duration || 0, 10)
+    if (callObj.connectedAt) {
+      finalDuration = Math.floor((Date.now() - callObj.connectedAt) / 1000)
+    }
+
+    const historyCall = {
+      id: callObj.id,
+      caller: callObj.caller,
+      callee: callObj.callee,
+      direction: callObj.direction,
+      status: payload.status || 'completed',
+      duration: finalDuration,
+      timestamp: callObj.timestamp,
+    }
+
+    calls.unshift(historyCall)
+    if (calls.length > 200) calls.pop()
+
+    console.info(
+      `[SOCKET] Call End: ${historyCall.caller} -> ${historyCall.callee} [${historyCall.status}, ${finalDuration}s]`
+    )
+
+    broadcastActiveCalls()
+    io.emit('call_history_update', calls.slice(0, 50))
+
+    const totalCalls = calls.length
+    const completedCalls = calls.filter((c) => c.status === 'completed').length
+    io.emit('stats_update', { totalCalls, completedCalls })
+  })
+
+  socket.on('disconnect', () => {
+    console.info(`[SOCKET] Disconnected: ${socket.id}`)
+  })
+})
+
+// Tick active call durations while calls are connected
+setInterval(() => {
+  if (activeCalls.size === 0) return
+  broadcastActiveCalls()
+}, 1000)
+
+const PORT = process.env.PORT || 5000
 server.listen(PORT, () => {
   console.log(`
 ╔══════════════════════════════════════════════╗
-║         VoIPSight Backend — Running          ║
-║         Port: ${PORT}                        ║
+║         VoxEra Backend — Running            ║
+║         Port: ${PORT}                            ║
 ╚══════════════════════════════════════════════╝
-
-  API Endpoints:
-  ─────────────────────────────────────
-  GET  /api/health
-  GET  /api/extensions
-  GET  /api/calls
-  GET  /api/active-calls
-  GET  /api/sip-log
-  GET  /api/stats
-  POST /api/sip-event
-
-  Socket.io Events (incoming):
-  ─────────────────────────────────────
-  sip_register  sip_invite   sip_answer
-  sip_bye       sip_hold     sip_resume
-  sip_mute      sip_unmute   rtp_metrics
-
-  Socket.io Events (outgoing):
-  ─────────────────────────────────────
-  sip_event     call_trying    call_ringing
-  call_connected call_ended   quality_update
-  extension_update active_calls_update
-  call_history_update stats_update
-  `);
-});
+  `)
+})

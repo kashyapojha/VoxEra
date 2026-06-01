@@ -1,10 +1,6 @@
 /**
  * SipContext.jsx
  * Global React context for SIP state management.
- * Manages UA instance, registration, sessions, and call state.
- *
- * Replaces the old SIPContext that used hardcoded .env credentials.
- * Now supports dynamic multi-user registration from UI input.
  */
 
 import { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react'
@@ -16,6 +12,7 @@ import {
   destroyUA,
   SIP_DOMAIN
 } from '../services/sipService'
+import { useSocket } from './SocketContext'
 
 const SIPContext = createContext(null)
 
@@ -25,54 +22,135 @@ export const useSip = () => {
   return ctx
 }
 
-// ── Default RTP metrics ──
 const defaultMetrics = {
   jitter: 0, rtt: 0, packetLoss: 0,
   packetsSent: 0, packetsReceived: 0,
   bytesSent: 0, bytesReceived: 0
 }
 
+/** SIP Call-ID shared by both parties in the same dialog */
+function getSessionCallId(session) {
+  if (!session) return null
+  return session.request?.call_id || session.id || null
+}
+
+function syncTimerFromConnectedAt(connectedAt, callStartTimeRef, setCallDuration, callTimerRef) {
+  if (!connectedAt) return
+  callStartTimeRef.current = connectedAt
+
+  const tick = () => {
+    if (callStartTimeRef.current) {
+      setCallDuration(Math.floor((Date.now() - callStartTimeRef.current) / 1000))
+    }
+  }
+  tick()
+  clearInterval(callTimerRef.current)
+  callTimerRef.current = setInterval(tick, 1000)
+}
+
 export const SIPProvider = ({ children }) => {
-  // ── Registration state ──
-  const [isRegistered,    setIsRegistered]    = useState(false)
-  const [isRegistering,   setIsRegistering]   = useState(false)
+  const { socket } = useSocket()
+
+  const [isRegistered, setIsRegistered] = useState(false)
+  const [isRegistering, setIsRegistering] = useState(false)
   const [registrationError, setRegistrationError] = useState(null)
-  const [extension,       setExtension]       = useState(() => localStorage.getItem('sip_ext') || '')
-  const [connectionStatus, setConnectionStatus] = useState('disconnected') // disconnected | connecting | connected
+  const [extension, setExtension] = useState(() => localStorage.getItem('sip_ext') || '')
+  const [connectionStatus, setConnectionStatus] = useState('disconnected')
 
-  // ── Call state ──
-  const [callStatus,   setCallStatus]   = useState('idle') // idle | calling | ringing | incoming | connected | on-hold | ended
+  const [sipConfig, setSipConfig] = useState({
+    websocket: 'wss://172.29.175.83:8089/ws',
+    uri: '',
+    password: ''
+  })
+
+  const [callStatus, setCallStatus] = useState('idle')
   const [callDuration, setCallDuration] = useState(0)
-  const [incomingCall, setIncomingCall] = useState(null)  // incoming JsSIP session
-  const [incomingFrom, setIncomingFrom] = useState(null)  // caller extension
-  const [currentCall,  setCurrentCall]  = useState(null)  // active JsSIP session
+  const [incomingCall, setIncomingCall] = useState(null)
+  const [incomingFrom, setIncomingFrom] = useState(null)
+  const [currentCall, setCurrentCall] = useState(null)
 
-  // ── QoS metrics ──
   const [rtpMetrics, setRtpMetrics] = useState(defaultMetrics)
   const [peerConnection, setPeerConnection] = useState(null)
-
-  // ── SIP logs ──
   const [sipLogs, setSipLogs] = useState([])
 
-  // ── Refs ──
-  const uaRef        = useRef(null)
+  const uaRef = useRef(null)
   const callTimerRef = useRef(null)
   const statsTimerRef = useRef(null)
-  const prevBytesRef  = useRef(0)
+  const prevBytesRef = useRef(0)
+  const callStartTimeRef = useRef(null)
+  const currentCallIdRef = useRef(null)
+  const extensionRef = useRef(extension)
 
-  // ── Call Timer ──
-  const startCallTimer = useCallback(() => {
-    setCallDuration(0)
-    callTimerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000)
-  }, [])
+  useEffect(() => {
+    extensionRef.current = extension
+  }, [extension])
 
   const stopCallTimer = useCallback(() => {
     clearInterval(callTimerRef.current)
     callTimerRef.current = null
+    callStartTimeRef.current = null
+    currentCallIdRef.current = null
     setCallDuration(0)
   }, [])
 
-  // ── RTP Stats Polling ──
+  const startCallTimer = useCallback((connectedAt) => {
+    const anchor = connectedAt || callStartTimeRef.current || Date.now()
+    syncTimerFromConnectedAt(anchor, callStartTimeRef, setCallDuration, callTimerRef)
+  }, [])
+
+  const emitCallStart = useCallback((session, { caller, callee, direction, status }) => {
+    if (!socket) return
+    const id = getSessionCallId(session)
+    if (!id) return
+    currentCallIdRef.current = id
+    socket.emit('call_start', {
+      id,
+      caller: caller || extensionRef.current || 'Unknown',
+      callee: callee || 'Unknown',
+      direction,
+      status,
+    })
+  }, [socket])
+
+  const emitCallEstablish = useCallback((session) => {
+    if (!socket) return
+    const id = getSessionCallId(session)
+    if (!id) return
+    currentCallIdRef.current = id
+    const remote = session.remote_identity?.uri?.user
+    const local = extensionRef.current
+    socket.emit('call_establish', {
+      id,
+      caller: session.direction === 'incoming' ? remote : local,
+      callee: session.direction === 'incoming' ? local : remote,
+      direction: session.direction === 'incoming' ? 'inbound' : 'outbound',
+    })
+  }, [socket])
+
+  const emitCallEnd = useCallback((session, status) => {
+    if (!socket) return
+    const id = getSessionCallId(session) || currentCallIdRef.current
+    if (!id) return
+    const elapsed = callStartTimeRef.current
+      ? Math.floor((Date.now() - callStartTimeRef.current) / 1000)
+      : 0
+    socket.emit('call_end', { id, status, duration: elapsed })
+  }, [socket])
+
+  // Server-authoritative connected time — keeps both ends in sync
+  useEffect(() => {
+    if (!socket) return
+
+    const onCallConnected = ({ id, connectedAt }) => {
+      if (!id || id !== currentCallIdRef.current) return
+      if (!connectedAt) return
+      startCallTimer(connectedAt)
+    }
+
+    socket.on('call_connected', onCallConnected)
+    return () => socket.off('call_connected', onCallConnected)
+  }, [socket, startCallTimer])
+
   const startStatsPolling = useCallback((pc) => {
     if (!pc) return
     prevBytesRef.current = 0
@@ -82,12 +160,12 @@ export const SIPProvider = ({ children }) => {
         const report = await pc.getStats()
         const metrics = { ...defaultMetrics }
 
-        report.forEach(r => {
+        report.forEach((r) => {
           if (r.type === 'inbound-rtp' && r.kind === 'audio') {
-            metrics.jitter          = Math.round((r.jitter || 0) * 1000)
+            metrics.jitter = Math.round((r.jitter || 0) * 1000)
             metrics.packetsReceived = r.packetsReceived || 0
-            metrics.bytesReceived   = r.bytesReceived   || 0
-            const lost  = r.packetsLost || 0
+            metrics.bytesReceived = r.bytesReceived || 0
+            const lost = r.packetsLost || 0
             const total = metrics.packetsReceived + lost
             metrics.packetLoss = total > 0 ? parseFloat(((lost / total) * 100).toFixed(2)) : 0
             const delta = metrics.bytesReceived - prevBytesRef.current
@@ -96,13 +174,15 @@ export const SIPProvider = ({ children }) => {
           }
           if (r.type === 'outbound-rtp' && r.kind === 'audio') {
             metrics.packetsSent = r.packetsSent || 0
-            metrics.bytesSent   = r.bytesSent   || 0
+            metrics.bytesSent = r.bytesSent || 0
           }
           if (r.type === 'remote-inbound-rtp' && r.kind === 'audio') {
             if (r.roundTripTime !== undefined) metrics.rtt = Math.round(r.roundTripTime * 1000)
           }
           if (r.type === 'candidate-pair' && r.state === 'succeeded') {
-            if (metrics.rtt === 0 && r.currentRoundTripTime) metrics.rtt = Math.round(r.currentRoundTripTime * 1000)
+            if (metrics.rtt === 0 && r.currentRoundTripTime) {
+              metrics.rtt = Math.round(r.currentRoundTripTime * 1000)
+            }
           }
         })
 
@@ -120,7 +200,6 @@ export const SIPProvider = ({ children }) => {
     prevBytesRef.current = 0
   }, [])
 
-  // ── Reset call state ──
   const resetCallState = useCallback(() => {
     setCallStatus('idle')
     setCurrentCall(null)
@@ -131,14 +210,12 @@ export const SIPProvider = ({ children }) => {
     setPeerConnection(null)
   }, [stopCallTimer, stopStatsPolling])
 
-  // ── REGISTER ──
   const register = useCallback((ext, password) => {
     if (!ext || !password) {
       setRegistrationError('Extension and password are required')
       return
     }
 
-    // Destroy existing UA
     if (uaRef.current) destroyUA(uaRef.current)
 
     setIsRegistering(true)
@@ -146,18 +223,18 @@ export const SIPProvider = ({ children }) => {
     setConnectionStatus('connecting')
 
     const callbacks = {
-      onConnecting:  () => setConnectionStatus('connecting'),
-      onConnected:   () => setConnectionStatus('connected'),
-      onDisconnected:(cause) => {
+      onConnecting: () => setConnectionStatus('connecting'),
+      onConnected: () => setConnectionStatus('connected'),
+      onDisconnected: () => {
         setConnectionStatus('disconnected')
         setIsRegistered(false)
       },
-      onRegistered: (ext) => {
+      onRegistered: (registeredExt) => {
         setIsRegistered(true)
         setIsRegistering(false)
-        setExtension(ext)
+        setExtension(registeredExt)
         setRegistrationError(null)
-        localStorage.setItem('sip_ext', ext)
+        localStorage.setItem('sip_ext', registeredExt)
         localStorage.setItem('sip_registered', 'true')
       },
       onUnregistered: () => {
@@ -174,13 +251,25 @@ export const SIPProvider = ({ children }) => {
         setIncomingCall(session)
         setIncomingFrom(caller)
         setCallStatus('incoming')
+        emitCallStart(session, {
+          caller,
+          callee: extensionRef.current || 'Unknown',
+          direction: 'inbound',
+          status: 'ringing',
+        })
       },
-      onOutgoingCall: (session) => {
+      onOutgoingCall: (session, callee) => {
         setCurrentCall(session)
         setCallStatus('calling')
+        emitCallStart(session, {
+          caller: extensionRef.current || 'Unknown',
+          callee,
+          direction: 'outbound',
+          status: 'calling',
+        })
       },
-      onProgress: (code) => {
-        if (callStatus !== 'incoming') setCallStatus('ringing')
+      onProgress: () => {
+        setCallStatus((prev) => (prev === 'incoming' ? prev : 'ringing'))
       },
       onAccepted: () => {},
       onConfirmed: (session) => {
@@ -188,31 +277,39 @@ export const SIPProvider = ({ children }) => {
         setCallStatus('connected')
         setIncomingCall(null)
         setIncomingFrom(null)
-        startCallTimer()
-        // Start QoS monitoring after call confirmed
+        emitCallEstablish(session)
+        // Timer starts when server broadcasts call_connected with shared connectedAt
         const pc = session.connection
         if (pc) {
           setPeerConnection(pc)
           startStatsPolling(pc)
         }
       },
-      onEnded: () => resetCallState(),
-      onFailed: (cause) => {
-        console.error('[SIP] Call failed:', cause)
+      onEnded: (session) => {
+        emitCallEnd(session || currentCall, 'completed')
+        resetCallState()
+      },
+      onFailed: (session, cause) => {
+        emitCallEnd(session || currentCall, cause === 'Rejected' ? 'missed' : 'failed')
         resetCallState()
       },
       onPeerConnection: (pc) => {
-        console.info('[SIP] PeerConnection ready')
         setPeerConnection(pc)
-      }
+      },
     }
 
     const ua = createUA(ext, password, callbacks)
     ua.start()
     uaRef.current = ua
-  }, [startCallTimer, startStatsPolling, resetCallState])
+  }, [
+    emitCallStart,
+    emitCallEstablish,
+    emitCallEnd,
+    resetCallState,
+    startStatsPolling,
+    currentCall,
+  ])
 
-  // ── UNREGISTER ──
   const unregister = useCallback(() => {
     if (uaRef.current) {
       destroyUA(uaRef.current)
@@ -225,7 +322,6 @@ export const SIPProvider = ({ children }) => {
     localStorage.removeItem('sip_registered')
   }, [resetCallState])
 
-  // ── MAKE CALL ──
   const makeCall = useCallback((target) => {
     if (!uaRef.current || !isRegistered) return
     if (callStatus !== 'idle') return
@@ -238,7 +334,6 @@ export const SIPProvider = ({ children }) => {
     }
   }, [isRegistered, callStatus])
 
-  // ── ANSWER CALL ──
   const answerCall = useCallback(() => {
     if (!incomingCall) return
     sipAnswerCall(incomingCall)
@@ -246,50 +341,41 @@ export const SIPProvider = ({ children }) => {
     setCallStatus('connected')
     setIncomingCall(null)
     setIncomingFrom(null)
-    startCallTimer()
-  }, [incomingCall, startCallTimer])
+    // Do not start timer here — wait for onConfirmed + server call_connected
+  }, [incomingCall])
 
-  // ── REJECT CALL ──
   const rejectCall = useCallback(() => {
     if (!incomingCall) return
     terminateSession(incomingCall)
-    resetCallState()
-  }, [incomingCall, resetCallState])
+  }, [incomingCall])
 
-  // ── HANGUP ──
   const hangupCall = useCallback(() => {
     if (!currentCall) return
     terminateSession(currentCall)
-    resetCallState()
-  }, [currentCall, resetCallState])
+  }, [currentCall])
 
-  // ── HOLD ──
   const holdCall = useCallback(() => {
     if (!currentCall) return
     currentCall.hold()
     setCallStatus('on-hold')
   }, [currentCall])
 
-  // ── UNHOLD ──
   const unholdCall = useCallback(() => {
     if (!currentCall) return
     currentCall.unhold()
     setCallStatus('connected')
   }, [currentCall])
 
-  // ── MUTE ──
   const muteAudio = useCallback(() => {
     if (!currentCall) return
     currentCall.mute({ audio: true })
   }, [currentCall])
 
-  // ── UNMUTE ──
   const unmuteAudio = useCallback(() => {
     if (!currentCall) return
     currentCall.unmute({ audio: true })
   }, [currentCall])
 
-  // ── Cleanup on unmount ──
   useEffect(() => {
     return () => {
       destroyUA(uaRef.current)
@@ -299,7 +385,6 @@ export const SIPProvider = ({ children }) => {
   }, [])
 
   const value = {
-    // Registration
     isRegistered,
     isRegistering,
     registrationError,
@@ -307,14 +392,14 @@ export const SIPProvider = ({ children }) => {
     connectionStatus,
     register,
     unregister,
-    // Call state
+    sipConfig,
+    setSipConfig,
     callStatus,
     callDuration,
     currentCall,
     incomingCall,
     incomingFrom,
     peerConnection,
-    // Call actions
     makeCall,
     answerCall,
     rejectCall,
@@ -323,9 +408,7 @@ export const SIPProvider = ({ children }) => {
     unholdCall,
     muteAudio,
     unmuteAudio,
-    // Metrics
     rtpMetrics,
-    // Logs
     sipLogs,
     setSipLogs,
   }

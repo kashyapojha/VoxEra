@@ -8,15 +8,19 @@ import { useSip } from '../hooks/useSip'
 export function SipStatus() {
   const { 
     isRegistered, 
-    isConnected, 
+    connectionStatus, 
     extension, 
     callStatus,
     callDuration,
-    hasIncomingCall,
+    incomingCall,
     incomingFrom,
-    statusMessage,
-    error
+    registrationError
   } = useSip()
+
+  const isConnected = connectionStatus === 'connected'
+  const hasIncomingCall = callStatus === 'incoming' || !!incomingCall
+  const error = registrationError
+  const statusMessage = connectionStatus === 'connecting' ? 'Connecting to SIP server...' : null
 
   const getStatusColor = () => {
     if (!isConnected) return 'text-red-400'

@@ -47,11 +47,11 @@ jobs:
       - name: Build frontend image
         run: |
           docker build \
-            -t ${{ secrets.DOCKER_USERNAME }}/birlateams-frontend:latest .
+            -t ${{ secrets.DOCKER_USERNAME }}/voxera-frontend:latest .
 
       - name: Push frontend image
         run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/birlateams-frontend:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/voxera-frontend:latest
 
   deploy-to-aws:
     name: Deploy to AWS EC2
@@ -67,11 +67,11 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            docker pull ${{ secrets.DOCKER_USERNAME }}/birlateams-frontend:latest
-            docker stop birlateams-frontend || true
-            docker rm birlateams-frontend || true
+            docker pull ${{ secrets.DOCKER_USERNAME }}/voxera-frontend:latest
+            docker stop voxera-frontend || true
+            docker rm voxera-frontend || true
             docker run -d \
-              --name birlateams-frontend \
+              --name voxera-frontend \
               -p 80:80 \
-              ${{ secrets.DOCKER_USERNAME }}/birlateams-frontend:latest
+              ${{ secrets.DOCKER_USERNAME }}/voxera-frontend:latest
 

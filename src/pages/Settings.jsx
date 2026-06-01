@@ -4,9 +4,11 @@ import { motion } from 'framer-motion'
 import { User, Bell, Shield, Phone, Globe, Save, LogOut } from 'lucide-react'
 import GlassCard from '../components/UI/GlassCard'
 import { useSip } from '../context/SIPContext'
+import { useAuth } from '../context/AuthContext'
 
 const Settings = () => {
-  const { isRegistered, register, unregister, sipConfig, setSipConfig } = useSip()
+  const { isRegistered, register, unregister, sipConfig, setSipConfig, extension } = useSip()
+  const { user, logout } = useAuth()
 
   // Load saved settings from localStorage on mount
   useEffect(() => {
@@ -22,7 +24,8 @@ const Settings = () => {
   }, [setSipConfig])
 
   const handleSIPRegister = () => {
-    register(sipConfig)
+    const ext = sipConfig.uri?.split('@')[0]?.replace('sip:', '') || extension || ''
+    register(ext, sipConfig.password)
   }
 
   const handleSIPUnregister = () => {
@@ -34,9 +37,9 @@ const Settings = () => {
       icon: User,
       title: 'Profile Settings',
       items: [
-        { label: 'Display Name', type: 'text', value: 'John Doe' },
-        { label: 'Email', type: 'email', value: 'john@example.com' },
-        { label: 'Extension', type: 'text', value: '1001' }
+        { label: 'Display Name', type: 'text', value: user?.name || 'John Doe' },
+        { label: 'Email', type: 'email', value: user?.email || 'john@example.com' },
+        { label: 'Department', type: 'text', value: user?.department || '—' }
       ]
     },
     {
@@ -193,7 +196,7 @@ const Settings = () => {
             <h3 className="text-lg font-semibold text-red-400">Danger Zone</h3>
           </div>
           <div className="space-y-4">
-            <button onClick={() => { unregister(); localStorage.clear(); }} className="w-full py-3 rounded-xl bg-red-500/20 text-red-400 font-semibold hover:bg-red-500/30 transition-colors">
+            <button onClick={() => { unregister(); logout(); }} className="w-full py-3 rounded-xl bg-red-500/20 text-red-400 font-semibold hover:bg-red-500/30 transition-colors">
               Sign Out
             </button>
             <button className="w-full py-3 rounded-xl bg-white/5 text-red-400 font-semibold hover:bg-white/10 transition-colors">

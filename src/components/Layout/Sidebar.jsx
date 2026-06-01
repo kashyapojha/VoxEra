@@ -35,9 +35,9 @@ const Sidebar = ({ isOpen, onClose }) => {
       <aside className={`fixed inset-y-0 left-0 z-40 w-64 glass border-r border-white/10 h-screen flex flex-col transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-6">
           <div className="flex items-center gap-3 mb-8">
-            <img src="/birlateams-logo.png" alt="BirlaTeams Logo" className="w-24 h-24" />
+            <img src="/voxera-logo.png" alt="VoxEra Logo" className="w-24 h-24" />
             <div className="flex flex-col">
-              <span className="text-2xl font-bold gradient-text">BirlaTeams</span>
+              <span className="text-2xl font-bold gradient-text">VoxEra</span>
               <span className="text-xs text-gray-400">Enterprise Communications</span>
             </div>
           </div>

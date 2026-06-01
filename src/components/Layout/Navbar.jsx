@@ -15,7 +15,7 @@ const Navbar = ({ onMenuClick, isMobileMenuOpen }) => {
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: BarChart },
     { path: '/softphone', label: 'Softphone', icon: Phone },
-    { path: '/reports', label: 'Reports', icon: PieChart },
+    { path: '/analytics', label: 'Analytics', icon: PieChart },
     { path: '/settings', label: 'Settings', icon: Settings },
   ]
 
@@ -38,9 +38,9 @@ const Navbar = ({ onMenuClick, isMobileMenuOpen }) => {
             {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
           <Link to="/dashboard" className="flex items-center gap-3">
-            <img src="/birlateams-logo.png" alt="BirlaTeams Logo" className="w-24 h-24" />
+            <img src="/voxera-logo.png" alt="VoxEra Logo" className="w-24 h-24" />
             <div className="flex flex-col">
-              <span className="text-2xl font-bold gradient-text">BirlaTeams</span>
+              <span className="text-2xl font-bold gradient-text">VoxEra</span>
               <span className="text-xs text-gray-400">Enterprise Communications</span>
             </div>
             <div className="flex items-center gap-3">

@@ -17,11 +17,11 @@ export const SocketProvider = ({ children }) => {
   const [lastMessage, setLastMessage] = useState(null)
 
   useEffect(() => {
-    // Use Vite env or default to localhost
-    const backend = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'
+    // Use Vite env or default to empty string to use proxy
+    const backend = import.meta.env.VITE_BACKEND_URL || ''
     const socketInstance = io(backend, {
       autoConnect: true,
-      transports: ['websocket']
+      transports: ['websocket', 'polling']
     })
 
     socketInstance.on('connect', () => {
@@ -73,7 +73,7 @@ export const SocketProvider = ({ children }) => {
   }
 
   // expose backend url for other components
-  value.backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'
+  value.backendUrl = import.meta.env.VITE_BACKEND_URL || ''
 
   return (
     <SocketContext.Provider value={value}>

@@ -105,12 +105,12 @@ export function createUA(extension, password, callbacks) {
 
     session.on('ended', (e) => {
       console.info('[SIP] Session ended', e.cause)
-      callbacks.onEnded?.(e.cause)
+      callbacks.onEnded?.(session, e.cause)
     })
 
     session.on('failed', (e) => {
       console.error('[SIP] Session failed', e.cause)
-      callbacks.onFailed?.(e.cause)
+      callbacks.onFailed?.(session, e.cause)
     })
 
     session.on('peerconnection', (e) => {

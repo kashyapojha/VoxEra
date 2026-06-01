@@ -1,18 +1,65 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Phone, X } from 'lucide-react'
-import { useState } from 'react'
+import { Phone, X, Star, Send } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { io } from 'socket.io-client'
 
 const Landing = () => {
   const [showPrivacy, setShowPrivacy] = useState(false)
   const [showTerms, setShowTerms] = useState(false)
+  const [showFeedback, setShowFeedback] = useState(false)
+  const [feedbacks, setFeedbacks] = useState([])
+  const [feedbackForm, setFeedbackForm] = useState({ name: '', rating: 5, message: '' })
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const navigate = useNavigate()
+
+  // Socket.io connection for real-time feedback
+  useEffect(() => {
+    const socket = io({
+      transports: ['websocket', 'polling']
+    })
+
+    socket.on('feedback_init', (initialFeedbacks) => {
+      setFeedbacks(initialFeedbacks)
+    })
+
+    socket.on('new_feedback', (feedback) => {
+      setFeedbacks(prev => [feedback, ...prev].slice(0, 20))
+    })
+
+    return () => {
+      socket.disconnect()
+    }
+  }, [])
 
   // Get dynamic date
   const getFormattedDate = () => {
     const date = new Date()
     const options = { year: 'numeric', month: 'long', day: 'numeric' }
     return date.toLocaleDateString('en-US', options)
+  }
+
+  // Handle feedback submission
+  const handleFeedbackSubmit = async (e) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+
+    try {
+      const response = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(feedbackForm)
+      })
+
+      if (response.ok) {
+        setFeedbackForm({ name: '', rating: 5, message: '' })
+        setShowFeedback(false)
+      }
+    } catch (err) {
+      console.error('Feedback submission error:', err)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -28,9 +75,9 @@ const Landing = () => {
           {/* Left — Logo + tagline */}
           <div className="flex flex-col">
             <div className="flex items-center gap-3">
-              <img src="/birlateams-logo.png" alt="BirlaTeams Logo" className="w-24 h-24" />
+              <img src="/voxera-logo.png" alt="VoxEra Logo" className="w-24 h-24" />
               <div className="flex flex-col">
-                <span className="text-2xl font-bold gradient-text">BirlaTeams</span>
+                <span className="text-2xl font-bold gradient-text">VoxEra</span>
                 <span className="text-xs text-gray-400">Enterprise Communications</span>
               </div>
             </div>
@@ -44,11 +91,17 @@ const Landing = () => {
 
           {/* Right — Auth links */}
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => setShowFeedback(true)}
+              className="text-gray-400 hover:text-white transition-colors text-sm"
+            >
+              Feedback
+            </button>
             <Link to="/login" className="text-gray-400 hover:text-white transition-colors text-sm">
               Login
             </Link>
             <Link
-              to="/login"
+              to="/signup"
               className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold hover:shadow-[0_0_30px_rgba(91,46,255,0.5)] transition-all duration-300"
             >
               Sign Up
@@ -67,12 +120,12 @@ const Landing = () => {
           >
             {/* Logo icon */}
             <div className="flex justify-center mb-5">
-              <img src="/birlateams-logo.png" alt="BirlaTeams Logo" className="w-64 h-64" />
+              <img src="/voxera-logo.png" alt="VoxEra Logo" className="w-64 h-64" />
             </div>
 
             {/* Name */}
             <h1 className="text-5xl lg:text-6xl font-bold mb-3 gradient-text pb-2">
-              BirlaTeams
+              VoxEra
             </h1>
 
             {/* Tagline */}
@@ -115,7 +168,7 @@ const Landing = () => {
           <p className="text-xs text-gray-600">
             SIP · WebRTC · Asterisk · Real-Time Monitoring
           </p>
-          <p className="text-xs text-gray-600">© 2026 BirlaTeams</p>
+          <p className="text-xs text-gray-600">© 2026 VoxEra</p>
           <div className="flex items-center gap-4">
             <button 
               onClick={() => setShowPrivacy(true)} 
@@ -156,7 +209,7 @@ const Landing = () => {
               
               <section>
                 <h3 className="text-lg font-semibold mb-2">1. Introduction</h3>
-                <p>BirlaTeams ("we", "our", or "us") respects your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information.</p>
+                <p>VoxEra ("we", "our", or "us") respects your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information.</p>
               </section>
 
               <section>
@@ -174,7 +227,7 @@ const Landing = () => {
                 <h3 className="text-lg font-semibold mb-2">3. How We Use Your Information</h3>
                 <p>We use the information we collect to:</p>
                 <ul className="list-disc pl-5 mt-2">
-                  <li>Provide and maintain BirlaTeams services</li>
+                  <li>Provide and maintain VoxEra services</li>
                   <li>Authenticate users and prevent fraud</li>
                   <li>Generate analytics and reports</li>
                   <li>Improve our services</li>
@@ -218,37 +271,161 @@ const Landing = () => {
               
               <section>
                 <h3 className="text-lg font-semibold mb-2">1. Agreement to Terms</h3>
-                <p>By accessing and using BirlaTeams, you accept and agree to be bound by and comply with these Terms of Service.</p>
+                <p>By accessing and using VoxEra, you accept and agree to be bound by and comply with these Terms of Service.</p>
               </section>
 
               <section>
                 <h3 className="text-lg font-semibold mb-2">2. Use License</h3>
-                <p>Permission is granted to temporarily download one copy of the materials (information or software) on BirlaTeams for personal, non-commercial transitory viewing only. This is the grant of a license, not a transfer of title.</p>
+                <p>Permission is granted to temporarily download one copy of the materials (information or software) on VoxEra for personal, non-commercial transitory viewing only. This is the grant of a license, not a transfer of title.</p>
               </section>
 
               <section>
                 <h3 className="text-lg font-semibold mb-2">3. Disclaimer</h3>
-                <p>The materials on BirlaTeams are provided on an 'as is' basis. BirlaTeams makes no warranties, expressed or implied, and hereby disclaims and negates all other warranties including, without limitation, implied warranties or conditions of merchantability, fitness for a particular purpose, or non-infringement of intellectual property or other violation of rights.</p>
+                <p>The materials on VoxEra are provided on an 'as is' basis. VoxEra makes no warranties, expressed or implied, and hereby disclaims and negates all other warranties including, without limitation, implied warranties or conditions of merchantability, fitness for a particular purpose, or non-infringement of intellectual property or other violation of rights.</p>
               </section>
 
               <section>
                 <h3 className="text-lg font-semibold mb-2">4. Limitations</h3>
-                <p>In no event shall BirlaTeams or its suppliers be liable for any damages (including, without limitation, damages for loss of data or profit, or due to business interruption) arising out of the use or inability to use the materials on BirlaTeams.</p>
+                <p>In no event shall VoxEra or its suppliers be liable for any damages (including, without limitation, damages for loss of data or profit, or due to business interruption) arising out of the use or inability to use the materials on VoxEra.</p>
               </section>
 
               <section>
                 <h3 className="text-lg font-semibold mb-2">5. Accuracy of Materials</h3>
-                <p>The materials appearing on BirlaTeams could include technical, typographical, or photographic errors. BirlaTeams does not warrant that any of the materials on BirlaTeams are accurate, complete, or current.</p>
+                <p>The materials appearing on VoxEra could include technical, typographical, or photographic errors. VoxEra does not warrant that any of the materials on VoxEra are accurate, complete, or current.</p>
               </section>
 
               <section>
                 <h3 className="text-lg font-semibold mb-2">6. Modifications</h3>
-                <p>BirlaTeams may revise these Terms of Service at any time without notice. By using this website, you are agreeing to be bound by the then current version of these Terms of Service.</p>
+                <p>VoxEra may revise these Terms of Service at any time without notice. By using this website, you are agreeing to be bound by the then current version of these Terms of Service.</p>
               </section>
             </div>
           </motion.div>
         </div>
       )}
+
+      {/* Feedback Modal */}
+      {showFeedback && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="glass rounded-2xl max-w-md w-full p-8 border border-white/10"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold">Share Your Feedback</h2>
+              <button
+                onClick={() => setShowFeedback(false)}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <form onSubmit={handleFeedbackSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Your Name
+                </label>
+                <input
+                  type="text"
+                  value={feedbackForm.name}
+                  onChange={(e) => setFeedbackForm({ ...feedbackForm, name: e.target.value })}
+                  placeholder="John Doe"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-accent/50 transition-colors"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Rating
+                </label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setFeedbackForm({ ...feedbackForm, rating: star })}
+                      className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                    >
+                      <Star
+                        size={24}
+                        className={star <= feedbackForm.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-400'}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Your Message
+                </label>
+                <textarea
+                  value={feedbackForm.message}
+                  onChange={(e) => setFeedbackForm({ ...feedbackForm, message: e.target.value })}
+                  placeholder="Share your experience with VoxEra..."
+                  rows={4}
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-accent/50 transition-colors resize-none"
+                  required
+                  maxLength={200}
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full py-3 rounded-xl bg-gradient-primary text-white font-semibold hover:shadow-[0_0_30px_rgba(91,46,255,0.5)] transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? 'Submitting...' : 'Submit Feedback'}
+                {!isSubmitting && <Send size={20} />}
+              </button>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Floating Feedback Cards */}
+      {feedbacks.map((feedback, index) => (
+        <motion.div
+          key={feedback.id}
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.8 }}
+          transition={{ duration: 0.5, delay: index * 0.5 }}
+          className="fixed glass rounded-xl p-4 border border-white/10 z-20 max-w-xs"
+          style={{
+            top: `${10 + (index % 3) * 20}%`,
+            left: `${10 + (index % 4) * 20}%`,
+            animation: `fadeInOut 8s forwards ${index * 2}s`
+          }}
+        >
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-full bg-gradient-primary flex items-center justify-center text-white font-bold">
+              {feedback.initials}
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="font-semibold text-sm">{feedback.name}</span>
+                <div className="flex">
+                  {[...Array(feedback.rating)].map((_, i) => (
+                    <Star key={i} size={12} className="fill-yellow-400 text-yellow-400" />
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs text-gray-400 mb-1">{feedback.department}</p>
+              <p className="text-sm text-gray-300">{feedback.message}</p>
+            </div>
+          </div>
+        </motion.div>
+      ))}
+
+      <style>{`
+        @keyframes fadeInOut {
+          0% { opacity: 0; transform: scale(0.8); }
+          12.5% { opacity: 1; transform: scale(1); }
+          62.5% { opacity: 1; transform: scale(1); }
+          75% { opacity: 0; transform: scale(0.8); }
+          100% { opacity: 0; transform: scale(0.8); }
+        }
+      `}</style>
     </div>
   )
 }
