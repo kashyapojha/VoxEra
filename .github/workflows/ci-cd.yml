@@ -97,16 +97,35 @@ jobs:
 
       - name: Setup SSH key
         env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
+          set -euo pipefail
+          if [ -z "${EC2_HOST}" ]; then
+            echo "ERROR: EC2_HOST secret is missing or empty"
+            exit 1
+          fi
+          if [ -z "${EC2_SSH_KEY}" ]; then
+            echo "ERROR: EC2_SSH_KEY secret is missing or empty"
+            exit 1
+          fi
           mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
           printf '%s\n' "$EC2_SSH_KEY" | tr -d '\r' > ~/.ssh/ec2_key
           chmod 600 ~/.ssh/ec2_key
-          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          if ! grep -q "BEGIN.*PRIVATE KEY" ~/.ssh/ec2_key; then
+            echo "ERROR: EC2_SSH_KEY does not look like a valid private key"
+            exit 1
+          fi
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          echo "SSH key ready for $EC2_HOST"
 
       - name: Upload deployment files to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
         run: |
-          echo "Uploading deploy bundle..."
+          set -euo pipefail
+          echo "Uploading deploy bundle to $EC2_HOST..."
           time tar czf - \
             docker-compose.prod.yml \
             scripts/deploy-ec2.sh \
@@ -115,8 +134,11 @@ jobs:
             asterisk/extensions.conf \
             asterisk/pjsip.conf.template \
             asterisk/rtp.conf \
-            | ssh -i ~/.ssh/ec2_key -o BatchMode=yes -o ConnectTimeout=15 \
-                ubuntu@${{ secrets.EC2_HOST }} \
+            | ssh -i ~/.ssh/ec2_key \
+                -o BatchMode=yes \
+                -o ConnectTimeout=30 \
+                -o StrictHostKeyChecking=accept-new \
+                ubuntu@"$EC2_HOST" \
                 'mkdir -p ~/voxera && tar xzf - -C ~/voxera'
           echo "Upload complete"
 
@@ -148,6 +170,11 @@ jobs:
             bash "$APP_DIR/scripts/deploy-ec2.sh"
 
       - name: Verify deployment
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
         run: |
-          ssh -i ~/.ssh/ec2_key -o BatchMode=yes ubuntu@${{ secrets.EC2_HOST }} \
+          ssh -i ~/.ssh/ec2_key \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=accept-new \
+            ubuntu@"$EC2_HOST" \
             'curl -fsS http://localhost/api/health && docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"'
