@@ -95,12 +95,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup SSH key
+        env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          if [ -n "${{ secrets.EC2_SSH_KEY_B64 }}" ]; then
+            echo "${{ secrets.EC2_SSH_KEY_B64 }}" | base64 -d | tr -d '\r' > ~/.ssh/ec2_key
+          else
+            printf '%s\n' "$EC2_SSH_KEY" | tr -d '\r' > ~/.ssh/ec2_key
+          fi
+          chmod 600 ~/.ssh/ec2_key
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Test SSH connection
+        run: |
+          ssh -i ~/.ssh/ec2_key -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            ec2-user@${{ secrets.EC2_HOST }} "echo connected as \$(whoami)"
+
       - name: Copy deployment files to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ec2-user
-          key: ${{ secrets.EC2_SSH_KEY }}
+          key_path: /home/runner/.ssh/ec2_key
           source: "docker-compose.prod.yml,scripts/deploy-ec2.sh,asterisk"
           target: "/opt/voxera"
           strip_components: 0
@@ -120,7 +138,7 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ec2-user
-          key: ${{ secrets.EC2_SSH_KEY }}
+          key_path: /home/runner/.ssh/ec2_key
           envs: DOCKER_USERNAME,DOCKERHUB_TOKEN,DOCKER_FRONTEND_REPO,DOCKER_BACKEND_REPO,IMAGE_TAG,JWT_SECRET,POSTGRES_PASSWORD,PUBLIC_HOST,ASTERISK_EXTERNAL_IP
           script: |
             set -e
@@ -133,7 +151,7 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ec2-user
-          key: ${{ secrets.EC2_SSH_KEY }}
+          key_path: /home/runner/.ssh/ec2_key
           script: |
             curl -fsS http://localhost/api/health
             docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'

@@ -59,7 +59,8 @@ Repository → **Settings** → **Secrets and variables** → **Actions**
 | `DOCKER_USERNAME` | Your Docker Hub username |
 | `DOCKERHUB_TOKEN` | Docker Hub access token ([Account Settings → Security](https://hub.docker.com/settings/security)) |
 | `EC2_HOST` | Your Elastic IP, e.g. `13.62.237.148` |
-| `EC2_SSH_KEY` | Full contents of your `.pem` private key file |
+| `EC2_SSH_KEY` | Full contents of `VoxEra.pem` (private key, not `.pub`) |
+| `EC2_SSH_KEY_B64` | Optional: base64-encoded `VoxEra.pem` (more reliable on Windows) |
 | `JWT_SECRET` | Long random string, e.g. `openssl rand -hex 32` |
 | `POSTGRES_PASSWORD` | Long random string for Postgres |
 | `PUBLIC_HOST` | Same as Elastic IP (no `http://`) |
@@ -124,6 +125,8 @@ ssh -i VoxEra.pem ec2-user@<ELASTIC_IP> "docker ps"
 | EC2 pull denied | Ensure repos exist; token has read access; login runs in deploy script |
 | Backend won't start | `docker logs voxera-backend` — check `JWT_SECRET`, `DATABASE_URL` |
 | SIP won't register | Open 8088/8089 + UDP 10000–20000; verify `VITE_SIP_*` secrets |
+| SSH auth fails in Actions | Ensure `EC2_SSH_KEY` is the full `VoxEra.pem` private key; test `ssh -i VoxEra.pem ec2-user@IP` locally first |
+| SSH auth still fails | Create `EC2_SSH_KEY_B64`: on Windows `certutil -encode VoxEra.pem temp.b64` then copy the encoded block (no headers) into the secret |
 
 ---
 
