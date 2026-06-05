@@ -102,12 +102,13 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           source: "docker-compose.prod.yml,scripts/deploy-ec2.sh,asterisk"
-          target: "/opt/voxera"
+          target: "/home/ubuntu/voxera"
           strip_components: 0
 
       - name: Deploy containers on EC2
         uses: appleboy/ssh-action@v1.2.0
         env:
+          APP_DIR: /home/ubuntu/voxera
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
           DOCKER_FRONTEND_REPO: ${{ env.DOCKER_FRONTEND_REPO }}
@@ -121,12 +122,12 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: DOCKER_USERNAME,DOCKERHUB_TOKEN,DOCKER_FRONTEND_REPO,DOCKER_BACKEND_REPO,IMAGE_TAG,JWT_SECRET,POSTGRES_PASSWORD,PUBLIC_HOST,ASTERISK_EXTERNAL_IP
+          envs: APP_DIR,DOCKER_USERNAME,DOCKERHUB_TOKEN,DOCKER_FRONTEND_REPO,DOCKER_BACKEND_REPO,IMAGE_TAG,JWT_SECRET,POSTGRES_PASSWORD,PUBLIC_HOST,ASTERISK_EXTERNAL_IP
           script: |
             set -e
             export IMAGE_TAG="${IMAGE_TAG::7}"
-            chmod +x /opt/voxera/scripts/deploy-ec2.sh
-            bash /opt/voxera/scripts/deploy-ec2.sh
+            chmod +x "$APP_DIR/scripts/deploy-ec2.sh"
+            bash "$APP_DIR/scripts/deploy-ec2.sh"
 
       - name: Verify deployment
         uses: appleboy/ssh-action@v1.2.0

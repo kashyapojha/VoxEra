@@ -44,8 +44,8 @@ Create two repositories under your Docker Hub account:
 ```bash
 ssh -i VoxEra.pem ubuntu@<YOUR_ELASTIC_IP>   # Ubuntu AMI (use ec2-user for Amazon Linux)
 sudo bash scripts/bootstrap-ec2.sh
-sudo mkdir -p /opt/voxera
-sudo chown ec2-user:ec2-user /opt/voxera
+mkdir -p ~/voxera
+# Ubuntu deploy uses /home/ubuntu/voxera (no sudo needed)
 ```
 
 ---
@@ -128,6 +128,7 @@ ssh -i VoxEra.pem ec2-user@<ELASTIC_IP> "docker ps"
 | SIP won't register | Open 8088/8089 + UDP 10000–20000; verify `VITE_SIP_*` secrets |
 | SSH auth fails in Actions | Set `EC2_USER=ubuntu` if using Ubuntu AMI; ensure `EC2_SSH_KEY` is the full `VoxEra.pem` private key |
 | SSH auth still fails | Create `EC2_SSH_KEY_B64`: on Windows `certutil -encode VoxEra.pem temp.b64` then copy the encoded block (no headers) into the secret |
+| SCP fails creating `/opt/voxera` | Use `/home/ubuntu/voxera` as deploy path (ubuntu cannot write to `/opt` without sudo) |
 
 ---
 
