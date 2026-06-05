@@ -28,7 +28,7 @@ services:
     ports:
       - "${ASTERISK_WSS_PORT:-8088}:8088"
       - "${ASTERISK_SIP_PORT:-5060}:5060/udp"
-      - "${ASTERISK_RTP_START:-10000}-${ASTERISK_RTP_END:-20000}:${ASTERISK_RTP_START:-10000}-${ASTERISK_RTP_END:-20000}/udp"
+      - "${ASTERISK_RTP_START:-10000}-${ASTERISK_RTP_END:-10099}:${ASTERISK_RTP_START:-10000}-${ASTERISK_RTP_END:-10099}/udp"
     volumes:
       - ./asterisk/extensions.conf:/etc/asterisk/extensions.conf:ro
       - ./asterisk/rtp.conf:/etc/asterisk/rtp.conf:ro

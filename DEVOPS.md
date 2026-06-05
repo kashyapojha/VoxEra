@@ -30,7 +30,7 @@ GitHub push (main) → Build & Test → Docker push to Docker Hub → SSH deploy
 | 80 | TCP | Frontend (nginx) |
 | 8088 | TCP | Asterisk WebSocket (SIP) |
 | 5060 | UDP | SIP signaling |
-| 10000–20000 | UDP | RTP media |
+| 10000–10099 | UDP | RTP media (100 ports; enough for ~50 concurrent calls) |
 
 ### Docker Hub
 Create two repositories under your Docker Hub account:

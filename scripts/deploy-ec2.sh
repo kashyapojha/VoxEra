@@ -78,8 +78,11 @@ else
   exit 1
 fi
 
-$COMPOSE --env-file "$APP_DIR/.env" -f docker-compose.prod.yml pull
-if ! $COMPOSE --env-file "$APP_DIR/.env" -f docker-compose.prod.yml up -d --build --remove-orphans; then
+echo "[deploy] Pulling app images..."
+time $COMPOSE --env-file "$APP_DIR/.env" -f docker-compose.prod.yml pull backend frontend postgres
+
+echo "[deploy] Starting containers (asterisk builds only if image missing)..."
+if ! time $COMPOSE --env-file "$APP_DIR/.env" -f docker-compose.prod.yml up -d --remove-orphans; then
   echo "=== docker compose up failed ==="
   $COMPOSE --env-file "$APP_DIR/.env" -f docker-compose.prod.yml ps -a || true
   for c in voxera-backend voxera-frontend voxera-postgres voxera-asterisk; do
@@ -95,7 +98,7 @@ for i in $(seq 1 30); do
     echo "Backend healthy"
     break
   fi
-  if [ "$i" -eq 30 ]; then
+  if [ "$i" -eq 20 ]; then
     echo "=== Health check timed out ==="
     $COMPOSE --env-file "$APP_DIR/.env" -f docker-compose.prod.yml ps -a || true
     for c in voxera-backend voxera-frontend voxera-postgres voxera-asterisk; do
