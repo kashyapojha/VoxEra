@@ -126,6 +126,8 @@ jobs:
           script: |
             set -e
             export IMAGE_TAG="${IMAGE_TAG::7}"
+            : "${JWT_SECRET:?JWT_SECRET GitHub secret is required}"
+            : "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD GitHub secret is required}"
             chmod +x "$APP_DIR/scripts/deploy-ec2.sh"
             bash "$APP_DIR/scripts/deploy-ec2.sh"
 
