@@ -93,8 +93,6 @@ jobs:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
     steps:
-      - uses: actions/checkout@v4
-
       - name: Setup SSH key
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
@@ -120,32 +118,13 @@ jobs:
           ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
           echo "SSH key ready for $EC2_HOST"
 
-      - name: Upload deployment files to EC2
-        env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-        run: |
-          set -euo pipefail
-          echo "Uploading deploy bundle to $EC2_HOST..."
-          time tar czf - \
-            docker-compose.prod.yml \
-            scripts/deploy-ec2.sh \
-            asterisk/Dockerfile \
-            asterisk/docker-entrypoint.sh \
-            asterisk/extensions.conf \
-            asterisk/pjsip.conf.template \
-            asterisk/rtp.conf \
-            | ssh -i ~/.ssh/ec2_key \
-                -o BatchMode=yes \
-                -o ConnectTimeout=30 \
-                -o StrictHostKeyChecking=accept-new \
-                ubuntu@"$EC2_HOST" \
-                'mkdir -p ~/voxera && tar xzf - -C ~/voxera'
-          echo "Upload complete"
-
       - name: Deploy containers on EC2
         uses: appleboy/ssh-action@v1.2.0
         env:
           APP_DIR: /home/ubuntu/voxera
+          GITHUB_REPO: ${{ github.repository }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_TOKEN: ${{ github.token }}
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
           DOCKER_FRONTEND_REPO: ${{ env.DOCKER_FRONTEND_REPO }}
@@ -160,12 +139,28 @@ jobs:
           username: ubuntu
           key_path: /home/runner/.ssh/ec2_key
           command_timeout: 10m
-          envs: APP_DIR,DOCKER_USERNAME,DOCKERHUB_TOKEN,DOCKER_FRONTEND_REPO,DOCKER_BACKEND_REPO,IMAGE_TAG,JWT_SECRET,POSTGRES_PASSWORD,PUBLIC_HOST,ASTERISK_EXTERNAL_IP
+          envs: APP_DIR,GITHUB_REPO,GITHUB_REF_NAME,GITHUB_TOKEN,DOCKER_USERNAME,DOCKERHUB_TOKEN,DOCKER_FRONTEND_REPO,DOCKER_BACKEND_REPO,IMAGE_TAG,JWT_SECRET,POSTGRES_PASSWORD,PUBLIC_HOST,ASTERISK_EXTERNAL_IP
           script: |
             set -e
             export IMAGE_TAG="${IMAGE_TAG::7}"
             : "${JWT_SECRET:?JWT_SECRET GitHub secret is required}"
             : "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD GitHub secret is required}"
+
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq git
+
+            REPO_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git"
+            if [ ! -d "$APP_DIR/.git" ]; then
+              echo "Cloning repo to $APP_DIR (branch ${GITHUB_REF_NAME})..."
+              git clone --depth 1 -b "$GITHUB_REF_NAME" "$REPO_URL" "$APP_DIR"
+            else
+              echo "Updating repo in $APP_DIR (branch ${GITHUB_REF_NAME})..."
+              cd "$APP_DIR"
+              git remote set-url origin "$REPO_URL"
+              git fetch origin "$GITHUB_REF_NAME" --depth 1
+              git reset --hard "origin/${GITHUB_REF_NAME}"
+            fi
+
             chmod +x "$APP_DIR/scripts/deploy-ec2.sh"
             bash "$APP_DIR/scripts/deploy-ec2.sh"
 
