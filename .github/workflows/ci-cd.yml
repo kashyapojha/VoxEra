@@ -95,15 +95,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Copy deployment files to EC2
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: "docker-compose.prod.yml,scripts/deploy-ec2.sh,asterisk"
-          target: "/home/ubuntu/voxera"
-          strip_components: 0
+      - name: Setup SSH key
+        env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$EC2_SSH_KEY" | tr -d '\r' > ~/.ssh/ec2_key
+          chmod 600 ~/.ssh/ec2_key
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Upload deployment files to EC2
+        run: |
+          echo "Uploading deploy bundle..."
+          time tar czf - \
+            docker-compose.prod.yml \
+            scripts/deploy-ec2.sh \
+            asterisk/Dockerfile \
+            asterisk/docker-entrypoint.sh \
+            asterisk/extensions.conf \
+            asterisk/pjsip.conf.template \
+            asterisk/rtp.conf \
+            | ssh -i ~/.ssh/ec2_key -o BatchMode=yes -o ConnectTimeout=15 \
+                ubuntu@${{ secrets.EC2_HOST }} \
+                'mkdir -p ~/voxera && tar xzf - -C ~/voxera'
+          echo "Upload complete"
 
       - name: Deploy containers on EC2
         uses: appleboy/ssh-action@v1.2.0
@@ -121,7 +136,8 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
+          key_path: /home/runner/.ssh/ec2_key
+          command_timeout: 10m
           envs: APP_DIR,DOCKER_USERNAME,DOCKERHUB_TOKEN,DOCKER_FRONTEND_REPO,DOCKER_BACKEND_REPO,IMAGE_TAG,JWT_SECRET,POSTGRES_PASSWORD,PUBLIC_HOST,ASTERISK_EXTERNAL_IP
           script: |
             set -e
@@ -132,11 +148,6 @@ jobs:
             bash "$APP_DIR/scripts/deploy-ec2.sh"
 
       - name: Verify deployment
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            curl -fsS http://localhost/api/health
-            docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+        run: |
+          ssh -i ~/.ssh/ec2_key -o BatchMode=yes ubuntu@${{ secrets.EC2_HOST }} \
+            'curl -fsS http://localhost/api/health && docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"'
