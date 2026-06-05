@@ -1,8 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react'
+import { apiUrlFor } from '../config/env'
 
 const AuthContext = createContext()
-
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || ''
 
 export const useAuth = () => {
   const context = useContext(AuthContext)
@@ -28,7 +27,7 @@ export const AuthProvider = ({ children }) => {
           setIsAuthenticated(true)
           
           // Verify with backend
-          const res = await fetch(`${BACKEND_URL}/api/auth/me`, {
+          const res = await fetch(apiUrlFor('/api/auth/me'), {
             headers: { 'Authorization': `Bearer ${storedToken}` }
           })
           if (res.ok) {
@@ -51,7 +50,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
+      const res = await fetch(apiUrlFor('/api/auth/login'), {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ email, password })
@@ -76,7 +75,7 @@ export const AuthProvider = ({ children }) => {
 
   const signup = async (name, email, password, department) => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/auth/signup`, {
+      const res = await fetch(apiUrlFor('/api/auth/signup'), {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ name, email, password, department })
@@ -86,13 +85,9 @@ export const AuthProvider = ({ children }) => {
       if (!res.ok) {
         return { success: false, error: data.error || 'Signup failed' }
       }
-      
-      setUser(data.user)
-      setIsAuthenticated(true)
-      localStorage.setItem('token', data.token)
-      localStorage.setItem('user', JSON.stringify(data.user))
 
-      return { success: true, user: data.user }
+      // Account created — user must sign in separately
+      return { success: true, user: data.user, message: data.message }
     } catch (error) {
       console.error('[AUTH] Signup connection error:', error)
       return { success: false, error: 'Cannot connect to server. Try again.' }

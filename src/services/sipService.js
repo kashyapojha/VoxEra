@@ -1,32 +1,45 @@
 /**
  * sipService.js
  * Core JsSIP service layer — handles UA lifecycle, registration, and calls.
- * Completely stateless — state is managed by SipContext.
- *
- * This layer separates JsSIP logic from React state management.
+ * SIP endpoints come from VITE_SIP_WS_URL, VITE_SIP_URI, VITE_SIP_PASSWORD (no hardcoding).
  */
 
 import JsSIP from 'jssip'
+import { env } from '../config/env'
 
-// Read only domain and websocket from env — no credentials
-const SIP_DOMAIN = import.meta.env.VITE_SIP_DOMAIN || '172.29.175.83'
-const SIP_WS     = import.meta.env.VITE_SIP_WS     || 'ws://172.29.175.83:8088/ws'
+const SIP_WS = env.sipWsUrl
+const SIP_URI = env.sipUri
+const SIP_PASSWORD = env.sipPassword
+const SIP_DOMAIN = env.sipDomain
+
+if (!SIP_WS) {
+  console.error('[SIP] VITE_SIP_WS_URL is not set — WebRTC will not connect')
+}
 
 /**
- * Build JsSIP UA configuration dynamically from user input.
- * Each user gets their own UA instance with their own credentials.
+ * Build JsSIP UA from env defaults with optional overrides (Settings UI).
  *
- * @param {string} extension - SIP extension e.g. '1001'
- * @param {string} password  - SIP password
  * @param {object} callbacks - event handlers from SipContext
+ * @param {object} [overrides]
+ * @param {string} [overrides.websocketUrl] - ws/wss URL
+ * @param {string} [overrides.uri] - full SIP URI e.g. sip:1001@host
+ * @param {string} [overrides.password]
  */
-export function createUA(extension, password, callbacks) {
-  const socket = new JsSIP.WebSocketInterface(SIP_WS)
+export function createUA(callbacks, overrides = {}) {
+  const websocketUrl = overrides.websocketUrl || SIP_WS
+  const uri = overrides.uri || SIP_URI
+  const password = overrides.password || SIP_PASSWORD
+
+  if (!websocketUrl || !uri || !password) {
+    throw new Error('SIP configuration incomplete — set VITE_SIP_WS_URL, VITE_SIP_URI, VITE_SIP_PASSWORD')
+  }
+
+  const socket = new JsSIP.WebSocketInterface(websocketUrl)
 
   const configuration = {
     sockets:          [socket],
-    uri:              `sip:${extension}@${SIP_DOMAIN}`,
-    password:         password,
+    uri,
+    password,
     register:         true,
     session_timers:   false,
     register_expires: 300,
@@ -34,66 +47,61 @@ export function createUA(extension, password, callbacks) {
     connection_recovery_max_interval: 30,
   }
 
+  const extension = uri.replace(/^sip:/i, '').split('@')[0] || 'unknown'
   const ua = new JsSIP.UA(configuration)
 
-  // ── WebSocket events ──
   ua.on('connecting', () => {
-    console.info(`[SIP] Connecting — ext ${extension}`)
+    console.info(`[SIP] Connecting — ${uri}`)
     callbacks.onConnecting?.()
   })
 
   ua.on('connected', () => {
-    console.info(`[SIP] WebSocket connected — ext ${extension}`)
+    console.info(`[SIP] WebSocket connected — ${uri}`)
     callbacks.onConnected?.()
   })
 
   ua.on('disconnected', (e) => {
-    console.warn(`[SIP] WebSocket disconnected — ext ${extension}`, e.cause)
+    console.warn(`[SIP] WebSocket disconnected — ${uri}`, e.cause)
     callbacks.onDisconnected?.(e.cause)
   })
 
-  // ── Registration events ──
-  ua.on('registered', (e) => {
-    console.info(`[SIP] Registered — ext ${extension}`)
+  ua.on('registered', () => {
+    console.info(`[SIP] Registered — ${uri}`)
     callbacks.onRegistered?.(extension)
   })
 
   ua.on('unregistered', () => {
-    console.info(`[SIP] Unregistered — ext ${extension}`)
+    console.info(`[SIP] Unregistered — ${uri}`)
     callbacks.onUnregistered?.()
   })
 
   ua.on('registrationFailed', (e) => {
-    console.error(`[SIP] Registration failed — ext ${extension}`, e.cause)
+    console.error(`[SIP] Registration failed — ${uri}`, e.cause)
     callbacks.onRegistrationFailed?.(e.cause)
   })
 
-  // ── Session events ──
   ua.on('newRTCSession', (data) => {
-    const session   = data.session
-    const originator = data.originator // 'local' | 'remote'
+    const session = data.session
+    const originator = data.originator
 
     console.info(`[SIP] New session — originator: ${originator}`)
 
     if (originator === 'remote') {
-      // Incoming call
       const caller = session.remote_identity?.uri?.user || 'Unknown'
       console.info(`[SIP] Incoming call from ${caller}`)
       callbacks.onIncomingCall?.(session, caller)
     } else {
-      // Outgoing call
       const callee = session.remote_identity?.uri?.user || 'Unknown'
       console.info(`[SIP] Outgoing call to ${callee}`)
       callbacks.onOutgoingCall?.(session, callee)
     }
 
-    // ── Per-session events ──
     session.on('progress', (e) => {
       console.info(`[SIP] Session progress — ${e.response?.status_code}`)
       callbacks.onProgress?.(e.response?.status_code)
     })
 
-    session.on('accepted', (e) => {
+    session.on('accepted', () => {
       console.info('[SIP] Session accepted')
       callbacks.onAccepted?.()
     })
@@ -117,16 +125,14 @@ export function createUA(extension, password, callbacks) {
       const pc = e.peerconnection
       console.info('[SIP] PeerConnection created')
 
-      // Attach remote audio stream to DOM audio element
       pc.addEventListener('track', (trackEvent) => {
         console.info('[SIP] Remote track received:', trackEvent.track.kind)
         if (trackEvent.streams && trackEvent.streams[0]) {
           const audioEl = document.getElementById('remoteAudio')
           if (audioEl) {
             audioEl.srcObject = trackEvent.streams[0]
-            audioEl.play().catch(err => {
+            audioEl.play().catch((err) => {
               console.warn('[SIP] Audio autoplay blocked:', err)
-              // Handle autoplay policy — resume on user gesture
               document.addEventListener('click', () => audioEl.play(), { once: true })
             })
           }
@@ -140,12 +146,6 @@ export function createUA(extension, password, callbacks) {
   return ua
 }
 
-/**
- * Make an outgoing call.
- * @param {JsSIP.UA} ua        - active UA instance
- * @param {string}   target    - extension to call e.g. '1002'
- * @param {string}   domain    - SIP domain
- */
 export function makeCall(ua, target, domain = SIP_DOMAIN) {
   if (!ua) throw new Error('UA not initialized')
 
@@ -154,7 +154,7 @@ export function makeCall(ua, target, domain = SIP_DOMAIN) {
   const options = {
     mediaConstraints: { audio: true, video: false },
     pcConfig: {
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
     },
     sessionTimersExpires: 0,
   }
@@ -163,25 +163,17 @@ export function makeCall(ua, target, domain = SIP_DOMAIN) {
   return ua.call(targetURI, options)
 }
 
-/**
- * Answer an incoming call.
- * @param {JsSIP.RTCSession} session - incoming session
- */
 export function answerCall(session) {
   if (!session) return
   session.answer({
     mediaConstraints: { audio: true, video: false },
     pcConfig: {
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-    }
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+    },
   })
   console.info('[SIP] Call answered')
 }
 
-/**
- * Terminate a session (hangup or reject).
- * @param {JsSIP.RTCSession} session
- */
 export function terminateSession(session) {
   if (!session) return
   try {
@@ -192,10 +184,6 @@ export function terminateSession(session) {
   }
 }
 
-/**
- * Stop and destroy a UA instance.
- * @param {JsSIP.UA} ua
- */
 export function destroyUA(ua) {
   if (!ua) return
   try {
@@ -206,4 +194,4 @@ export function destroyUA(ua) {
   }
 }
 
-export { SIP_DOMAIN, SIP_WS }
+export { SIP_DOMAIN, SIP_WS, SIP_URI, SIP_PASSWORD }

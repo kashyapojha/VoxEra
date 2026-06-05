@@ -4,6 +4,7 @@ import { SocketProvider } from './context/SocketContext'
 import { SIPProvider } from './context/SIPContext'
 import Layout from './components/Layout/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
+import GuestRoute from './components/GuestRoute'
 import Landing from './pages/Landing'
 import Dashboard from './pages/Dashboard'
 import Softphone from './pages/Softphone'
@@ -19,9 +20,9 @@ function App() {
         <SocketProvider>
           <SIPProvider>
             <Routes>
-              <Route path="/"        element={<Landing />} />
-              <Route path="/login"   element={<Login />} />
-              <Route path="/signup"  element={<Signup />} />
+              <Route path="/" element={<GuestRoute><Landing /></GuestRoute>} />
+              <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
+              <Route path="/signup" element={<GuestRoute><Signup /></GuestRoute>} />
               <Route
                 path="/dashboard"
                 element={

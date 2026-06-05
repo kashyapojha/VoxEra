@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Phone, Lock, User, Wifi, Loader } from 'lucide-react'
 import { useSip } from '../../context/SIPContext'
+import { env } from '../../config/env'
 
 const SipLogin = () => {
   const {
@@ -19,8 +20,8 @@ const SipLogin = () => {
     connectionStatus
   } = useSip()
 
-  const [ext, setExt] = useState(() => localStorage.getItem('sip_ext') || '')
-  const [pass, setPass] = useState('')
+  const [ext, setExt] = useState(() => localStorage.getItem('sip_ext') || env.sipExtension || '')
+  const [pass, setPass] = useState(() => env.sipPassword || '')
 
   const handleRegister = (e) => {
     e.preventDefault()

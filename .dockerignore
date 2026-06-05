@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+.github
+*.md
+DEVOPS.md
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.vscode
+.idea
+agent-transcripts

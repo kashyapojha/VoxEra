@@ -24,8 +24,12 @@ const Settings = () => {
   }, [setSipConfig])
 
   const handleSIPRegister = () => {
-    const ext = sipConfig.uri?.split('@')[0]?.replace('sip:', '') || extension || ''
-    register(ext, sipConfig.password)
+    const input = (sipConfig.uri || '').trim()
+    // Expected: sip:<ext>@<domain>
+    const match = input.match(/^sip:([^@]+)@(.+)$/i)
+    const ext = match?.[1] || input.split('@')[0]?.replace('sip:', '') || extension || ''
+    const domain = match?.[2]
+    register(ext, sipConfig.password, domain)
   }
 
   const handleSIPUnregister = () => {

@@ -1,0 +1,139 @@
+name: VoxEra CI/CD
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+env:
+  DOCKER_FRONTEND_REPO: ${{ vars.DOCKER_FRONTEND_REPO || 'voxera-frontend' }}
+  DOCKER_BACKEND_REPO: ${{ vars.DOCKER_BACKEND_REPO || 'voxera-backend' }}
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Lint build (frontend)
+        run: npm run build
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Syntax check backend
+        working-directory: backend
+        run: npm test
+
+  docker-build-push:
+    name: Docker Build & Push to Docker Hub
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set image tags
+        id: meta
+        run: |
+          SHA="${GITHUB_SHA::7}"
+          USER="${{ secrets.DOCKER_USERNAME }}"
+          echo "tag=$SHA" >> "$GITHUB_OUTPUT"
+          echo "frontend=${USER}/${{ env.DOCKER_FRONTEND_REPO }}" >> "$GITHUB_OUTPUT"
+          echo "backend=${USER}/${{ env.DOCKER_BACKEND_REPO }}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.frontend }}:${{ steps.meta.outputs.tag }}
+            ${{ steps.meta.outputs.frontend }}:latest
+          build-args: |
+            VITE_API_URL=${{ secrets.VITE_API_URL }}
+            VITE_SIP_WS_URL=${{ secrets.VITE_SIP_WS_URL }}
+            VITE_SIP_URI=${{ secrets.VITE_SIP_URI }}
+            VITE_SIP_PASSWORD=${{ secrets.VITE_SIP_PASSWORD }}
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: Dockerfile
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.backend }}:${{ steps.meta.outputs.tag }}
+            ${{ steps.meta.outputs.backend }}:latest
+
+  deploy-ec2:
+    name: Deploy to AWS EC2
+    runs-on: ubuntu-latest
+    needs: docker-build-push
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy deployment files to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "docker-compose.prod.yml,scripts/deploy-ec2.sh,asterisk"
+          target: "/opt/voxera"
+          strip_components: 0
+
+      - name: Deploy containers on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          DOCKER_FRONTEND_REPO: ${{ env.DOCKER_FRONTEND_REPO }}
+          DOCKER_BACKEND_REPO: ${{ env.DOCKER_BACKEND_REPO }}
+          IMAGE_TAG: ${{ github.sha }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          PUBLIC_HOST: ${{ secrets.PUBLIC_HOST }}
+          ASTERISK_EXTERNAL_IP: ${{ secrets.ASTERISK_EXTERNAL_IP }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: DOCKER_USERNAME,DOCKERHUB_TOKEN,DOCKER_FRONTEND_REPO,DOCKER_BACKEND_REPO,IMAGE_TAG,JWT_SECRET,POSTGRES_PASSWORD,PUBLIC_HOST,ASTERISK_EXTERNAL_IP
+          script: |
+            set -e
+            export IMAGE_TAG="${IMAGE_TAG::7}"
+            chmod +x /opt/voxera/scripts/deploy-ec2.sh
+            bash /opt/voxera/scripts/deploy-ec2.sh
+
+      - name: Verify deployment
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            curl -fsS http://localhost/api/health
+            docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'

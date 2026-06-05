@@ -11,6 +11,7 @@ const Landing = () => {
   const [feedbacks, setFeedbacks] = useState([])
   const [feedbackForm, setFeedbackForm] = useState({ name: '', rating: 5, message: '' })
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitSuccess, setSubmitSuccess] = useState(false)
   const navigate = useNavigate()
 
   // Socket.io connection for real-time feedback
@@ -53,7 +54,11 @@ const Landing = () => {
 
       if (response.ok) {
         setFeedbackForm({ name: '', rating: 5, message: '' })
-        setShowFeedback(false)
+        setSubmitSuccess(true)
+        setTimeout(() => {
+          setSubmitSuccess(false)
+          setShowFeedback(false)
+        }, 1500)
       }
     } catch (err) {
       console.error('Feedback submission error:', err)
@@ -151,13 +156,24 @@ const Landing = () => {
               built on JsSIP, WebRTC, and Asterisk PBX.
             </p>
 
-            {/* Sign In only */}
-            <Link
-              to="/login"
-              className="inline-block px-8 py-3 rounded-xl bg-gradient-primary text-white font-semibold hover:shadow-[0_0_40px_rgba(91,46,255,0.6)] transition-all duration-300"
-            >
-              Sign In to Continue
-            </Link>
+            {/* Auth CTAs */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <Link
+                to="/signup"
+                className="inline-block px-8 py-3 rounded-xl bg-gradient-primary text-white font-semibold hover:shadow-[0_0_40px_rgba(91,46,255,0.6)] transition-all duration-300"
+              >
+                Get Started — Sign Up
+              </Link>
+              <Link
+                to="/login"
+                className="inline-block px-8 py-3 rounded-xl border border-white/20 text-white font-semibold hover:bg-white/10 transition-all duration-300"
+              >
+                Sign In
+              </Link>
+            </div>
+            <p className="text-xs text-gray-600 mt-4">
+              New here? Create an account first, then sign in.
+            </p>
           </motion.div>
         </section>
       </main>
@@ -357,7 +373,7 @@ const Landing = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Your Message
+                  Your Feedback
                 </label>
                 <textarea
                   value={feedbackForm.message}
@@ -369,13 +385,16 @@ const Landing = () => {
                   maxLength={200}
                 />
               </div>
+              {submitSuccess && (
+                <p className="text-sm text-green-400 text-center">Thank you! Your feedback was saved.</p>
+              )}
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || submitSuccess}
                 className="w-full py-3 rounded-xl bg-gradient-primary text-white font-semibold hover:shadow-[0_0_30px_rgba(91,46,255,0.5)] transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? 'Submitting...' : 'Submit Feedback'}
-                {!isSubmitting && <Send size={20} />}
+                {isSubmitting ? 'Submitting...' : submitSuccess ? 'Saved!' : 'Submit Feedback'}
+                {!isSubmitting && !submitSuccess && <Send size={20} />}
               </button>
             </form>
           </motion.div>
@@ -410,7 +429,6 @@ const Landing = () => {
                   ))}
                 </div>
               </div>
-              <p className="text-xs text-gray-400 mb-1">{feedback.department}</p>
               <p className="text-sm text-gray-300">{feedback.message}</p>
             </div>
           </div>

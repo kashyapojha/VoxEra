@@ -232,12 +232,17 @@ The theme uses a dark background with neon accents. Modify in:
 
 ## Production Deployment
 
-```bash
-# Build the project
-npm run build
+See **[DEVOPS.md](DEVOPS.md)** for full AWS EC2 + ECR + GitHub Actions setup.
 
-# The build output will be in the dist/ directory
-# Deploy the dist/ folder to your web server
+Quick summary:
+1. Configure EC2, ECR, and security group manually in AWS
+2. Add GitHub Secrets (see DEVOPS.md)
+3. `git push origin main` — CI builds images and deploys to EC2
+
+Local full stack:
+```bash
+cp .env.example .env.local
+docker compose --env-file .env.local up --build
 ```
 
 ## Future Enhancements

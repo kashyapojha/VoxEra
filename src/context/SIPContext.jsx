@@ -10,8 +10,9 @@ import {
   answerCall as sipAnswerCall,
   terminateSession,
   destroyUA,
-  SIP_DOMAIN
+  SIP_DOMAIN,
 } from '../services/sipService'
+import { env, parseSipUri } from '../config/env'
 import { useSocket } from './SocketContext'
 
 const SIPContext = createContext(null)
@@ -58,9 +59,9 @@ export const SIPProvider = ({ children }) => {
   const [connectionStatus, setConnectionStatus] = useState('disconnected')
 
   const [sipConfig, setSipConfig] = useState({
-    websocket: 'wss://172.29.175.83:8089/ws',
-    uri: '',
-    password: ''
+    websocket: env.sipWsUrl,
+    uri: env.sipUri,
+    password: env.sipPassword,
   })
 
   const [callStatus, setCallStatus] = useState('idle')
@@ -210,9 +211,18 @@ export const SIPProvider = ({ children }) => {
     setPeerConnection(null)
   }, [stopCallTimer, stopStatsPolling])
 
-  const register = useCallback((ext, password) => {
-    if (!ext || !password) {
-      setRegistrationError('Extension and password are required')
+  const register = useCallback((ext, password, domainOverride) => {
+    const websocketUrl = sipConfig.websocket?.trim() || env.sipWsUrl
+    const pass = password || sipConfig.password || env.sipPassword
+    let uri = sipConfig.uri?.trim() || env.sipUri
+
+    if (ext) {
+      const domain = domainOverride || parseSipUri(uri).domain || env.sipDomain
+      uri = `sip:${ext}@${domain}`
+    }
+
+    if (!uri || !pass) {
+      setRegistrationError('SIP URI and password are required (set in .env or Settings)')
       return
     }
 
@@ -298,7 +308,7 @@ export const SIPProvider = ({ children }) => {
       },
     }
 
-    const ua = createUA(ext, password, callbacks)
+    const ua = createUA(callbacks, { websocketUrl, uri, password: pass })
     ua.start()
     uaRef.current = ua
   }, [
@@ -308,6 +318,9 @@ export const SIPProvider = ({ children }) => {
     resetCallState,
     startStatsPolling,
     currentCall,
+    sipConfig.websocket,
+    sipConfig.uri,
+    sipConfig.password,
   ])
 
   const unregister = useCallback(() => {

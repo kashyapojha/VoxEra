@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { io } from 'socket.io-client'
+import { env } from '../config/env'
 
 const SocketContext = createContext()
 
@@ -17,8 +18,8 @@ export const SocketProvider = ({ children }) => {
   const [lastMessage, setLastMessage] = useState(null)
 
   useEffect(() => {
-    // Use Vite env or default to empty string to use proxy
-    const backend = import.meta.env.VITE_BACKEND_URL || ''
+    // Empty apiUrl = same-origin (nginx or Vite proxy)
+    const backend = env.apiUrl
     const socketInstance = io(backend, {
       autoConnect: true,
       transports: ['websocket', 'polling']
@@ -73,7 +74,7 @@ export const SocketProvider = ({ children }) => {
   }
 
   // expose backend url for other components
-  value.backendUrl = import.meta.env.VITE_BACKEND_URL || ''
+  value.backendUrl = env.apiUrl
 
   return (
     <SocketContext.Provider value={value}>

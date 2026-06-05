@@ -1,34 +1,90 @@
-version: '3.8'
-
+# Local / full stack. Default env: .env.local
+# Production on same machine: ENV_FILE=.env.production docker compose up --build
 services:
 
-  # ── Frontend (React + Nginx) ──
   frontend:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-}
+        VITE_SIP_WS_URL: ${VITE_SIP_WS_URL:-ws://172.29.175.83:8088/ws}
+        VITE_SIP_URI: ${VITE_SIP_URI:-sip:1001@172.29.175.83}
+        VITE_SIP_PASSWORD: ${VITE_SIP_PASSWORD:-1001}
     ports:
-      - "80:80"
+      - "${FRONTEND_PORT:-80}:80"
     depends_on:
       - backend
     networks:
-      - voipsight-net
+      - voxera-net
     restart: unless-stopped
 
-  # ── Backend (Node.js) ──
+  asterisk:
+    build:
+      context: ./asterisk
+      dockerfile: Dockerfile
+    container_name: voxera-asterisk
+    restart: unless-stopped
+    ports:
+      - "${ASTERISK_WSS_PORT:-8088}:8088"
+      - "${ASTERISK_SIP_PORT:-5060}:5060/udp"
+      - "${ASTERISK_RTP_START:-10000}-${ASTERISK_RTP_END:-20000}:${ASTERISK_RTP_START:-10000}-${ASTERISK_RTP_END:-20000}/udp"
+    volumes:
+      - ./asterisk/extensions.conf:/etc/asterisk/extensions.conf:ro
+      - ./asterisk/rtp.conf:/etc/asterisk/rtp.conf:ro
+      - ./asterisk/logs:/var/log/asterisk
+    environment:
+      ASTERISK_EXTERNAL_IP: ${ASTERISK_EXTERNAL_IP:-127.0.0.1}
+      ASTERISK_UID: ${ASTERISK_UID:-1000}
+      ASTERISK_GID: ${ASTERISK_GID:-1000}
+    networks:
+      - voxera-net
+
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "5000:5000"
+      - "${BACKEND_PORT:-5000}:5000"
     environment:
-      - NODE_ENV=production
-      - PORT=5000
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-5000}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
+      ASTERISK_HOST: ${ASTERISK_HOST:-asterisk}
+      ASTERISK_PORT: ${ASTERISK_PORT:-8088}
+      DATABASE_URL: ${DATABASE_URL:-postgres://voxera:voxera_dev@postgres:5432/voxera}
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
-      - voipsight-net
+      - voxera-net
     restart: unless-stopped
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: voxera-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-voxera}
+      POSTGRES_USER: ${POSTGRES_USER:-voxera}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-voxera_dev}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - voxera-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-voxera} -d ${POSTGRES_DB:-voxera}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
 networks:
-  voipsight-net:
+  voxera-net:
     driver: bridge
+
+volumes:
+  pgdata:
