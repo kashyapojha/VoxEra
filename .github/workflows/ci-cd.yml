@@ -92,7 +92,7 @@ jobs:
     needs: docker-build-push
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     env:
-      EC2_USER: ${{ secrets.EC2_USER || 'ec2-user' }}
+      EC2_USER: ${{ secrets.EC2_USER || 'ubuntu' }}
 
     steps:
       - uses: actions/checkout@v4
