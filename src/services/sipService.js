@@ -5,7 +5,7 @@
  */
 
 import JsSIP from 'jssip'
-import { env } from '../config/env'
+import { env, parseSipUri } from '../config/env'
 
 const SIP_WS = env.sipWsUrl
 const SIP_URI = env.sipUri
@@ -35,10 +35,12 @@ export function createUA(callbacks, overrides = {}) {
   }
 
   const socket = new JsSIP.WebSocketInterface(websocketUrl)
+  const { extension: authorizationUser } = parseSipUri(uri)
 
   const configuration = {
     sockets:          [socket],
     uri,
+    authorization_user: authorizationUser || undefined,
     password,
     register:         true,
     session_timers:   false,
@@ -46,6 +48,12 @@ export function createUA(callbacks, overrides = {}) {
     connection_recovery_min_interval: 2,
     connection_recovery_max_interval: 30,
   }
+
+  console.info('[SIP] UA configuration', {
+    uri: configuration.uri,
+    authorization_user: configuration.authorization_user,
+    websocket: websocketUrl,
+  })
 
   const extension = uri.replace(/^sip:/i, '').split('@')[0] || 'unknown'
   const ua = new JsSIP.UA(configuration)
