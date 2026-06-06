@@ -8,7 +8,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-}
-        VITE_SIP_WS_URL: ${VITE_SIP_WS_URL:-ws://172.29.175.83:8088/ws}
+        VITE_SIP_WS_URL: ${VITE_SIP_WS_URL:-ws://172.29.175.83:8089/ws}
         VITE_SIP_URI: ${VITE_SIP_URI:-sip:1001@172.29.175.83}
         VITE_SIP_PASSWORD: ${VITE_SIP_PASSWORD:-1001}
     ports:
@@ -26,7 +26,7 @@ services:
     container_name: voxera-asterisk
     restart: unless-stopped
     ports:
-      - "${ASTERISK_WSS_PORT:-8088}:8088"
+      - "${ASTERISK_WSS_PORT:-8089}:8089"
       - "${ASTERISK_SIP_PORT:-5060}:5060/udp"
       - "${ASTERISK_RTP_START:-10000}-${ASTERISK_RTP_END:-10099}:${ASTERISK_RTP_START:-10000}-${ASTERISK_RTP_END:-10099}/udp"
     volumes:
@@ -53,7 +53,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
       PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
       ASTERISK_HOST: ${ASTERISK_HOST:-asterisk}
-      ASTERISK_PORT: ${ASTERISK_PORT:-8088}
+      ASTERISK_PORT: ${ASTERISK_PORT:-8089}
       DATABASE_URL: ${DATABASE_URL:-postgres://voxera:voxera_dev@postgres:5432/voxera}
     depends_on:
       postgres:

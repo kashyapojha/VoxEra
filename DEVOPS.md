@@ -28,7 +28,7 @@ GitHub push (main) → Build & Test → Docker push to Docker Hub → SSH deploy
 |------|----------|---------|
 | 22 | TCP | SSH |
 | 80 | TCP | Frontend (nginx) |
-| 8088 | TCP | Asterisk WebSocket (SIP over WS) |
+| 8089 | TCP | Asterisk WebSocket (SIP over WS) |
 | 5060 | UDP | SIP signaling |
 | 10000–10099 | UDP | RTP media (100 ports; enough for ~50 concurrent calls) |
 
@@ -66,7 +66,7 @@ Repository → **Settings** → **Secrets and variables** → **Actions**
 | `PUBLIC_HOST` | Same as Elastic IP (no `http://`) |
 | `ASTERISK_EXTERNAL_IP` | Same as Elastic IP (optional — defaults to `PUBLIC_HOST`) |
 | `VITE_API_URL` | **Leave empty** — nginx proxies `/api` same-origin |
-| `VITE_SIP_WS_URL` | `ws://<ELASTIC_IP>:8088/ws` (use `wss://` only if you terminate TLS on 8088) |
+| `VITE_SIP_WS_URL` | `ws://<ELASTIC_IP>:8089/ws` |
 | `VITE_SIP_URI` | `sip:1001@<ELASTIC_IP>` |
 | `VITE_SIP_PASSWORD` | `1001` |
 
@@ -124,7 +124,7 @@ ssh -i VoxEra.pem ubuntu@<ELASTIC_IP> "docker ps"
 | Docker Hub push denied | Check `DOCKER_USERNAME` + `DOCKERHUB_TOKEN` secrets |
 | EC2 pull denied | Ensure repos exist; token has read access; login runs in deploy script |
 | Backend won't start | `docker logs voxera-backend` — check `JWT_SECRET`, `DATABASE_URL` |
-| SIP won't register | Open TCP 8088 + UDP 5060 + UDP 10000–10099; verify `VITE_SIP_*` secrets match Elastic IP |
+| SIP won't register | Open TCP 8089 + UDP 5060 + UDP 10000–10099; `VITE_SIP_WS_URL` must be `ws://<IP>:8089/ws` matching Asterisk bind port |
 | SSH auth fails in Actions | Set `EC2_USER` secret (`ubuntu` or `ec2-user`); ensure `EC2_SSH_KEY` is the full private key |
 | SSH auth still fails | Create `EC2_SSH_KEY_B64`: on Windows `certutil -encode VoxEra.pem temp.b64` then copy the encoded block (no headers) into the secret |
 | SCP fails creating `/opt/voxera` | Use `/home/ubuntu/voxera` as deploy path (ubuntu cannot write to `/opt` without sudo) |

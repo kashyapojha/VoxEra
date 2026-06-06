@@ -13,6 +13,6 @@ RUN mkdir -p /var/log/asterisk && \
     chmod +x /docker-entrypoint.sh && \
     chown -R asterisk:asterisk /etc/asterisk /var/log/asterisk 2>/dev/null || true
 
-EXPOSE 8088 5060/udp
+EXPOSE 8089 5060/udp
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

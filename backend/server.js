@@ -37,7 +37,7 @@ if (!JWT_SECRET) {
 const PUBLIC_HOST = process.env.PUBLIC_HOST || 'localhost'
 const ASTERISK_HOST = process.env.ASTERISK_HOST || 'localhost'
 // Default to standard Asterisk HTTP/WS/ARI port 8088
-const ASTERISK_PORT = process.env.ASTERISK_PORT || '8088'
+const ASTERISK_PORT = process.env.ASTERISK_PORT || '8089'
 
 // ── In-memory stores (calls — users & feedback persisted in PostgreSQL) ──
 const calls        = []

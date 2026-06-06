@@ -15,6 +15,11 @@ if [ -f "$TEMPLATE" ]; then
   else
     echo "[asterisk] WARNING: endpoint_identifier_order missing from pjsip.conf"
   fi
+  if grep -q 'bind=0.0.0.0:8089' "$OUTPUT"; then
+    echo "[asterisk] pjsip.conf: WebSocket transport on port 8089"
+  else
+    echo "[asterisk] WARNING: WebSocket transport port mismatch in pjsip.conf"
+  fi
 fi
 
 exec /usr/sbin/asterisk -f -vvvg -c
