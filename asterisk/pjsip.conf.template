@@ -7,7 +7,7 @@ endpoint_identifier_order=auth_username,username,ip
 [transport-wss]
 type=transport
 protocol=ws
-bind=0.0.0.0:8089
+bind=0.0.0.0:${ASTERISK_WS_PORT}
 external_signaling_address=${ASTERISK_EXTERNAL_IP}
 external_media_address=${ASTERISK_EXTERNAL_IP}
 

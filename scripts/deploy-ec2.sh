@@ -54,6 +54,7 @@ env = {
     "DATABASE_URL": os.environ["DATABASE_URL"],
     "ASTERISK_HOST": "asterisk",
     "ASTERISK_PORT": "8089",
+    "ASTERISK_WSS_PORT": "8089",
     "DOCKER_USERNAME": os.environ["DOCKER_USERNAME"],
     "DOCKER_FRONTEND_REPO": os.environ["DOCKER_FRONTEND_REPO"],
     "DOCKER_BACKEND_REPO": os.environ["DOCKER_BACKEND_REPO"],

@@ -26,16 +26,16 @@ services:
     container_name: voxera-asterisk
     restart: unless-stopped
     ports:
-      - "${ASTERISK_WSS_PORT:-8089}:8089"
+      - "${ASTERISK_WSS_PORT:-8089}:${ASTERISK_WSS_PORT:-8089}"
       - "${ASTERISK_SIP_PORT:-5060}:5060/udp"
       - "${ASTERISK_RTP_START:-10000}-${ASTERISK_RTP_END:-10099}:${ASTERISK_RTP_START:-10000}-${ASTERISK_RTP_END:-10099}/udp"
     volumes:
       - ./asterisk/extensions.conf:/etc/asterisk/extensions.conf:ro
       - ./asterisk/rtp.conf:/etc/asterisk/rtp.conf:ro
-      - ./asterisk/http.conf:/etc/asterisk/http.conf:ro
       - ./asterisk/logs:/var/log/asterisk
     environment:
       ASTERISK_EXTERNAL_IP: ${ASTERISK_EXTERNAL_IP:-127.0.0.1}
+      ASTERISK_WS_PORT: ${ASTERISK_WSS_PORT:-8089}
       ASTERISK_UID: ${ASTERISK_UID:-1000}
       ASTERISK_GID: ${ASTERISK_GID:-1000}
     networks:
