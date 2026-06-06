@@ -12,7 +12,7 @@ import {
   destroyUA,
   SIP_DOMAIN,
 } from '../services/sipService'
-import { env, parseSipUri } from '../config/env'
+import { env, parseSipUri, trimEnv } from '../config/env'
 import { useSocket } from './SocketContext'
 
 const SIPContext = createContext(null)
@@ -212,13 +212,19 @@ export const SIPProvider = ({ children }) => {
   }, [stopCallTimer, stopStatsPolling])
 
   const register = useCallback((ext, password, domainOverride) => {
-    const websocketUrl = sipConfig.websocket?.trim() || env.sipWsUrl
-    const pass = password || sipConfig.password || env.sipPassword
-    let uri = sipConfig.uri?.trim() || env.sipUri
+    const websocketUrl = trimEnv(sipConfig.websocket) || env.sipWsUrl
+    const pass = trimEnv(password) || trimEnv(sipConfig.password) || env.sipPassword
+    let uri = trimEnv(sipConfig.uri) || env.sipUri
 
     if (ext) {
-      const domain = domainOverride || parseSipUri(uri).domain || env.sipDomain
-      uri = `sip:${ext}@${domain}`
+      const trimmedExt = trimEnv(ext)
+      // Use baked env URI when extension matches (avoids domain/password drift in production)
+      if (env.sipUri && trimmedExt === env.sipExtension) {
+        uri = env.sipUri
+      } else {
+        const domain = trimEnv(domainOverride) || parseSipUri(uri).domain || env.sipDomain
+        uri = `sip:${trimmedExt}@${domain}`
+      }
     }
 
     if (!uri || !pass) {

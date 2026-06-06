@@ -3,6 +3,7 @@
 type=global
 user_agent=VoxEra-Asterisk
 endpoint_identifier_order=auth_username,username,ip
+default_realm=${ASTERISK_EXTERNAL_IP}
 
 [transport-wss]
 type=transport
@@ -21,6 +22,7 @@ type=auth
 auth_type=userpass
 username=1001
 password=1001
+realm=${ASTERISK_EXTERNAL_IP}
 
 [1001-endpoint]
 type=endpoint
@@ -29,6 +31,9 @@ context=internal
 
 aors=1001
 auth=1001-auth
+
+from_user=1001
+from_domain=${ASTERISK_EXTERNAL_IP}
 
 disallow=all
 allow=opus,ulaw,alaw
@@ -60,6 +65,7 @@ type=auth
 auth_type=userpass
 username=1002
 password=1002
+realm=${ASTERISK_EXTERNAL_IP}
 
 [1002-endpoint]
 type=endpoint
@@ -68,6 +74,9 @@ context=internal
 
 aors=1002
 auth=1002-auth
+
+from_user=1002
+from_domain=${ASTERISK_EXTERNAL_IP}
 
 disallow=all
 allow=opus,ulaw,alaw

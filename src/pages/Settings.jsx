@@ -5,18 +5,27 @@ import { User, Bell, Shield, Phone, Globe, Save, LogOut } from 'lucide-react'
 import GlassCard from '../components/UI/GlassCard'
 import { useSip } from '../context/SIPContext'
 import { useAuth } from '../context/AuthContext'
+import { env } from '../config/env'
 
 const Settings = () => {
   const { isRegistered, register, unregister, sipConfig, setSipConfig, extension } = useSip()
   const { user, logout } = useAuth()
 
-  // Load saved settings from localStorage on mount
+  // Load saved settings — env-baked SIP values always win over stale localStorage
   useEffect(() => {
     try {
       const saved = localStorage.getItem('voipsight_settings')
       if (saved) {
         const parsed = JSON.parse(saved)
-        if (parsed?.sipConfig) setSipConfig(prev => ({ ...prev, ...parsed.sipConfig }))
+        if (parsed?.sipConfig) {
+          setSipConfig(prev => ({
+            ...prev,
+            ...parsed.sipConfig,
+            ...(env.sipWsUrl ? { websocket: env.sipWsUrl } : {}),
+            ...(env.sipUri ? { uri: env.sipUri } : {}),
+            ...(env.sipPassword ? { password: env.sipPassword } : {}),
+          }))
+        }
       }
     } catch (err) {
       // ignore parse errors

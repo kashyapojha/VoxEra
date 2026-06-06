@@ -5,7 +5,7 @@
  */
 
 import JsSIP from 'jssip'
-import { env, parseSipUri } from '../config/env'
+import { env, parseSipUri, trimEnv } from '../config/env'
 
 const SIP_WS = env.sipWsUrl
 const SIP_URI = env.sipUri
@@ -26,36 +26,50 @@ if (!SIP_WS) {
  * @param {string} [overrides.password]
  */
 export function createUA(callbacks, overrides = {}) {
-  const websocketUrl = overrides.websocketUrl || SIP_WS
-  const uri = overrides.uri || SIP_URI
-  const password = overrides.password || SIP_PASSWORD
+  const websocketUrl = trimEnv(overrides.websocketUrl || SIP_WS)
+  const uri = trimEnv(overrides.uri || SIP_URI)
+  const password = trimEnv(overrides.password || SIP_PASSWORD)
 
   if (!websocketUrl || !uri || !password) {
     throw new Error('SIP configuration incomplete — set VITE_SIP_WS_URL, VITE_SIP_URI, VITE_SIP_PASSWORD')
   }
 
   const socket = new JsSIP.WebSocketInterface(websocketUrl)
-  const { extension: authorizationUser } = parseSipUri(uri)
+  const { extension: authorizationUser, domain: uriDomain } = parseSipUri(uri)
+  const sipDomain = uriDomain || SIP_DOMAIN
+
+  if (!authorizationUser || !sipDomain) {
+    throw new Error(`Invalid SIP URI — expected sip:1001@host, got "${uri}"`)
+  }
+
+  // Normalize URI/registrar so REGISTER target, From header, and digest realm stay consistent.
+  const normalizedUri = `sip:${authorizationUser}@${sipDomain};transport=ws`
+  const registrarServer = `sip:${sipDomain}`
 
   const configuration = {
-    sockets:          [socket],
-    uri,
-    authorization_user: authorizationUser || undefined,
+    sockets:            [socket],
+    uri:                normalizedUri,
+    display_name:       authorizationUser,
+    authorization_user: authorizationUser,
     password,
-    register:         true,
-    session_timers:   false,
-    register_expires: 300,
+    registrar_server:   registrarServer,
+    register:           true,
+    session_timers:     false,
+    register_expires:   300,
     connection_recovery_min_interval: 2,
     connection_recovery_max_interval: 30,
   }
 
   console.info('[SIP] UA configuration', {
     uri: configuration.uri,
+    display_name: configuration.display_name,
     authorization_user: configuration.authorization_user,
+    registrar_server: configuration.registrar_server,
     websocket: websocketUrl,
+    password_length: password.length,
   })
 
-  const extension = uri.replace(/^sip:/i, '').split('@')[0] || 'unknown'
+  const extension = authorizationUser
   const ua = new JsSIP.UA(configuration)
 
   ua.on('connecting', () => {

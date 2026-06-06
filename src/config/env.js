@@ -16,19 +16,23 @@ function hostFromUrl(url) {
   }
 }
 
+export function trimEnv(value) {
+  return typeof value === 'string' ? value.trim().replace(/^["']|["']$/g, '') : ''
+}
+
 /** Parse sip:1001@host → { extension, domain } */
 export function parseSipUri(uri) {
-  const match = (uri || '').trim().match(/^sip:([^@]+)@(.+)$/i)
+  const match = trimEnv(uri).match(/^sip:([^@]+)@(.+)$/i)
   return {
-    extension: match?.[1] || '',
-    domain: match?.[2] || '',
+    extension: match?.[1]?.trim() || '',
+    domain: match?.[2]?.trim() || '',
   }
 }
 
-const apiUrl = trimTrailingSlash(import.meta.env.VITE_API_URL ?? '')
-const sipWsUrl = import.meta.env.VITE_SIP_WS_URL ?? ''
-const sipUri = import.meta.env.VITE_SIP_URI ?? ''
-const sipPassword = import.meta.env.VITE_SIP_PASSWORD ?? ''
+const apiUrl = trimTrailingSlash(trimEnv(import.meta.env.VITE_API_URL ?? ''))
+const sipWsUrl = trimEnv(import.meta.env.VITE_SIP_WS_URL ?? '')
+const sipUri = trimEnv(import.meta.env.VITE_SIP_URI ?? '')
+const sipPassword = trimEnv(import.meta.env.VITE_SIP_PASSWORD ?? '')
 const { extension: sipExtension, domain: sipDomain } = parseSipUri(sipUri)
 
 /** Same-origin API when apiUrl is empty (nginx / Vite proxy). */
