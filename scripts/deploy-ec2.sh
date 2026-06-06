@@ -2,7 +2,7 @@
 # Deploy VoxEra on EC2 — pull images from Docker Hub
 set -euo pipefail
 
-APP_DIR="${APP_DIR:-/opt/voxera}"
+APP_DIR="${APP_DIR:-/home/ubuntu/voxera}"
 IMAGE_TAG="${IMAGE_TAG:?IMAGE_TAG is required}"
 DOCKER_USERNAME="${DOCKER_USERNAME:?DOCKER_USERNAME is required}"
 DOCKERHUB_TOKEN="${DOCKERHUB_TOKEN:?DOCKERHUB_TOKEN is required}"
@@ -65,29 +65,43 @@ path.write_text("\n".join(f"{k}={quote(v)}" for k, v in env.items()) + "\n")
 PY
 chmod 600 "$APP_DIR/.env"
 
-echo "$DOCKERHUB_TOKEN" | docker login --username "$DOCKER_USERNAME" --password-stdin
+DOCKER=(docker)
+if ! docker info &>/dev/null 2>&1; then
+  if sudo docker info &>/dev/null 2>&1; then
+    DOCKER=(sudo docker)
+  else
+    echo "Docker is not installed or not running. Run scripts/bootstrap-ec2.sh first."
+    exit 1
+  fi
+fi
+
+echo "$DOCKERHUB_TOKEN" | "${DOCKER[@]}" login --username "$DOCKER_USERNAME" --password-stdin
 
 export DOCKER_USERNAME DOCKER_FRONTEND_REPO DOCKER_BACKEND_REPO IMAGE_TAG
 
-if docker compose version &>/dev/null 2>&1; then
-  COMPOSE="docker compose"
+if "${DOCKER[@]}" compose version &>/dev/null 2>&1; then
+  COMPOSE=("${DOCKER[@]}" compose)
 elif command -v docker-compose &>/dev/null; then
-  COMPOSE="docker-compose"
+  if [ "${DOCKER[0]}" = "sudo" ]; then
+    COMPOSE=(sudo docker-compose)
+  else
+    COMPOSE=(docker-compose)
+  fi
 else
   echo "Docker Compose not found. Run scripts/bootstrap-ec2.sh first."
   exit 1
 fi
 
 echo "[deploy] Pulling app images..."
-time $COMPOSE --env-file "$APP_DIR/.env" -f docker-compose.prod.yml pull backend frontend postgres
+time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml pull backend frontend postgres
 
 echo "[deploy] Starting containers (asterisk builds only if image missing)..."
-if ! time $COMPOSE --env-file "$APP_DIR/.env" -f docker-compose.prod.yml up -d --remove-orphans; then
+if ! time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml up -d --remove-orphans; then
   echo "=== docker compose up failed ==="
-  $COMPOSE --env-file "$APP_DIR/.env" -f docker-compose.prod.yml ps -a || true
+  "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml ps -a || true
   for c in voxera-backend voxera-frontend voxera-postgres voxera-asterisk; do
     echo "=== logs: $c ==="
-    docker logs "$c" --tail 80 2>&1 || true
+    "${DOCKER[@]}" logs "$c" --tail 80 2>&1 || true
   done
   exit 1
 fi
@@ -98,12 +112,12 @@ for i in $(seq 1 30); do
     echo "Backend healthy"
     break
   fi
-  if [ "$i" -eq 20 ]; then
+  if [ "$i" -eq 30 ]; then
     echo "=== Health check timed out ==="
-    $COMPOSE --env-file "$APP_DIR/.env" -f docker-compose.prod.yml ps -a || true
+    "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml ps -a || true
     for c in voxera-backend voxera-frontend voxera-postgres voxera-asterisk; do
       echo "=== logs: $c ==="
-      docker logs "$c" --tail 80 2>&1 || true
+      "${DOCKER[@]}" logs "$c" --tail 80 2>&1 || true
     done
     exit 1
   fi
@@ -112,4 +126,4 @@ done
 
 curl -fsS http://localhost/api/health
 echo ""
-$COMPOSE --env-file "$APP_DIR/.env" -f docker-compose.prod.yml ps
+"${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml ps

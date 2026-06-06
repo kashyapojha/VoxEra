@@ -18,7 +18,7 @@ GitHub push (main) → Build & Test → Docker push to Docker Hub → SSH deploy
 ## 1. AWS setup (manual, one-time)
 
 ### EC2 instance
-- Amazon Linux 2023 or similar
+- **Ubuntu 22.04/24.04 LTS** (recommended) or Amazon Linux 2023
 - Instance type: `c7i-flex.large` or larger (WebRTC needs CPU)
 - Attach an **Elastic IP** (stable public IP)
 
@@ -28,7 +28,7 @@ GitHub push (main) → Build & Test → Docker push to Docker Hub → SSH deploy
 |------|----------|---------|
 | 22 | TCP | SSH |
 | 80 | TCP | Frontend (nginx) |
-| 8088 | TCP | Asterisk WebSocket (SIP) |
+| 8088 | TCP | Asterisk WebSocket (SIP over WS) |
 | 5060 | UDP | SIP signaling |
 | 10000–10099 | UDP | RTP media (100 ports; enough for ~50 concurrent calls) |
 
@@ -44,8 +44,7 @@ Create two repositories under your Docker Hub account:
 ```bash
 ssh -i VoxEra.pem ubuntu@<YOUR_ELASTIC_IP>   # Ubuntu AMI (use ec2-user for Amazon Linux)
 sudo bash scripts/bootstrap-ec2.sh
-mkdir -p ~/voxera
-# Ubuntu deploy uses /home/ubuntu/voxera (no sudo needed)
+# Deploy path: /home/ubuntu/voxera (CI clones the repo here automatically)
 ```
 
 ---
@@ -67,7 +66,7 @@ Repository → **Settings** → **Secrets and variables** → **Actions**
 | `PUBLIC_HOST` | Same as Elastic IP (no `http://`) |
 | `ASTERISK_EXTERNAL_IP` | Same as Elastic IP (optional — defaults to `PUBLIC_HOST`) |
 | `VITE_API_URL` | **Leave empty** — nginx proxies `/api` same-origin |
-| `VITE_SIP_WS_URL` | `wss://<ELASTIC_IP>:8089/ws` |
+| `VITE_SIP_WS_URL` | `ws://<ELASTIC_IP>:8088/ws` (use `wss://` only if you terminate TLS on 8088) |
 | `VITE_SIP_URI` | `sip:1001@<ELASTIC_IP>` |
 | `VITE_SIP_PASSWORD` | `1001` |
 
@@ -104,7 +103,7 @@ git push origin main
 Pipeline:
 1. Builds and tests frontend + backend
 2. Pushes images to **Docker Hub** (tagged with git SHA + `latest`)
-3. SCPs compose + deploy script + `asterisk/` to EC2
+3. SSHs to EC2, clones/updates the repo, runs `scripts/deploy-ec2.sh`
 4. Logs into Docker Hub on EC2, pulls images, starts containers
 
 ---
@@ -113,7 +112,7 @@ Pipeline:
 
 ```bash
 curl http://<ELASTIC_IP>/api/health
-ssh -i VoxEra.pem ec2-user@<ELASTIC_IP> "docker ps"
+ssh -i VoxEra.pem ubuntu@<ELASTIC_IP> "docker ps"
 ```
 
 ---
@@ -125,10 +124,12 @@ ssh -i VoxEra.pem ec2-user@<ELASTIC_IP> "docker ps"
 | Docker Hub push denied | Check `DOCKER_USERNAME` + `DOCKERHUB_TOKEN` secrets |
 | EC2 pull denied | Ensure repos exist; token has read access; login runs in deploy script |
 | Backend won't start | `docker logs voxera-backend` — check `JWT_SECRET`, `DATABASE_URL` |
-| SIP won't register | Open 8088/8089 + UDP 10000–20000; verify `VITE_SIP_*` secrets |
-| SSH auth fails in Actions | Set `EC2_USER=ubuntu` if using Ubuntu AMI; ensure `EC2_SSH_KEY` is the full `VoxEra.pem` private key |
+| SIP won't register | Open TCP 8088 + UDP 5060 + UDP 10000–10099; verify `VITE_SIP_*` secrets match Elastic IP |
+| SSH auth fails in Actions | Set `EC2_USER` secret (`ubuntu` or `ec2-user`); ensure `EC2_SSH_KEY` is the full private key |
 | SSH auth still fails | Create `EC2_SSH_KEY_B64`: on Windows `certutil -encode VoxEra.pem temp.b64` then copy the encoded block (no headers) into the secret |
 | SCP fails creating `/opt/voxera` | Use `/home/ubuntu/voxera` as deploy path (ubuntu cannot write to `/opt` without sudo) |
+| `destination path already exists and is not an empty directory` | `/home/ubuntu/voxera` exists without a `.git` folder (manual setup or failed clone). CI removes and reclones automatically; or SSH in and run `rm -rf /home/ubuntu/voxera` then re-run the workflow |
+| Docker permission denied on EC2 | Run `sudo bash scripts/bootstrap-ec2.sh`, log out/in, or deploy script falls back to `sudo docker` |
 
 ---
 
