@@ -32,6 +32,7 @@ services:
     volumes:
       - ./asterisk/extensions.conf:/etc/asterisk/extensions.conf:ro
       - ./asterisk/rtp.conf:/etc/asterisk/rtp.conf:ro
+      - ./asterisk/http.conf:/etc/asterisk/http.conf:ro
       - ./asterisk/logs:/var/log/asterisk
     environment:
       ASTERISK_EXTERNAL_IP: ${ASTERISK_EXTERNAL_IP:-127.0.0.1}

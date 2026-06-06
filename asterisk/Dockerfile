@@ -6,6 +6,7 @@ RUN apk add --no-cache gettext || \
 COPY pjsip.conf.template /etc/asterisk/templates/pjsip.conf.template
 COPY extensions.conf /etc/asterisk/extensions.conf
 COPY rtp.conf /etc/asterisk/rtp.conf
+COPY http.conf /etc/asterisk/http.conf
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 
 RUN mkdir -p /var/log/asterisk && \
