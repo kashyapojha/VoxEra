@@ -1,15 +1,15 @@
+; ================= GLOBAL (must be first — maps REGISTER username → endpoint) =================
+[global]
+type=global
+user_agent=VoxEra-Asterisk
+endpoint_identifier_order=auth_username,username,ip
+
 [transport-wss]
 type=transport
 protocol=ws
 bind=0.0.0.0:8088
 external_signaling_address=${ASTERISK_EXTERNAL_IP}
 external_media_address=${ASTERISK_EXTERNAL_IP}
-
-; ================= GLOBAL =================
-[global]
-type=global
-user_agent=VoxEra-Asterisk
-endpoint_identifier_order=auth_username,username,ip
 
 ; ================= 1001 =================
 [1001]

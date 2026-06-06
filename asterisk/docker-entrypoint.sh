@@ -10,6 +10,11 @@ OUTPUT="/etc/asterisk/pjsip.conf"
 if [ -f "$TEMPLATE" ]; then
   envsubst '${ASTERISK_EXTERNAL_IP}' < "$TEMPLATE" > "$OUTPUT"
   echo "[asterisk] external_signaling/media address: ${ASTERISK_EXTERNAL_IP}"
+  if grep -q 'endpoint_identifier_order=auth_username,username,ip' "$OUTPUT"; then
+    echo "[asterisk] pjsip.conf: endpoint_identifier_order set (REGISTER username → endpoint)"
+  else
+    echo "[asterisk] WARNING: endpoint_identifier_order missing from pjsip.conf"
+  fi
 fi
 
 exec /usr/sbin/asterisk -f -vvvg -c
