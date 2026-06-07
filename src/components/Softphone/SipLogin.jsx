@@ -17,11 +17,12 @@ const SipLogin = () => {
     isRegistering,
     registrationError,
     extension,
-    connectionStatus
+    connectionStatus,
+    sipConfig,
   } = useSip()
 
   const [ext, setExt] = useState(() => localStorage.getItem('sip_ext') || env.sipExtension || '')
-  const [pass, setPass] = useState(() => env.sipPassword || '')
+  const [pass, setPass] = useState(() => sipConfig.password || env.sipPassword || '')
 
   const handleRegister = (e) => {
     e.preventDefault()

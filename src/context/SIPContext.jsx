@@ -12,7 +12,7 @@ import {
   destroyUA,
   SIP_DOMAIN,
 } from '../services/sipService'
-import { env, parseSipUri, trimEnv } from '../config/env'
+import { env, parseSipUri, trimEnv, hostFromUrl } from '../config/env'
 import { useSocket } from './SocketContext'
 
 const SIPContext = createContext(null)
@@ -218,13 +218,13 @@ export const SIPProvider = ({ children }) => {
 
     if (ext) {
       const trimmedExt = trimEnv(ext)
-      // Use baked env URI when extension matches (avoids domain/password drift in production)
-      if (env.sipUri && trimmedExt === env.sipExtension) {
-        uri = env.sipUri
-      } else {
-        const domain = trimEnv(domainOverride) || parseSipUri(uri).domain || env.sipDomain
-        uri = `sip:${trimmedExt}@${domain}`
-      }
+      const configuredUri = trimEnv(sipConfig.uri) || env.sipUri
+      const domain =
+        trimEnv(domainOverride) ||
+        parseSipUri(configuredUri).domain ||
+        hostFromUrl(websocketUrl) ||
+        env.sipDomain
+      uri = `sip:${trimmedExt}@${domain}`
     }
 
     if (!uri || !pass) {
@@ -313,6 +313,13 @@ export const SIPProvider = ({ children }) => {
         setPeerConnection(pc)
       },
     }
+
+    console.log('===== PASSWORD DEBUG =====')
+    console.log('password arg:', password)
+    console.log('sipConfig.password:', sipConfig.password)
+    console.log('env.sipPassword:', env.sipPassword)
+    console.log('final pass:', pass)
+    console.log('pass length:', pass?.length)
 
     const ua = createUA(callbacks, { websocketUrl, uri, password: pass })
     ua.start()

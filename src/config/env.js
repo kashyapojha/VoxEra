@@ -7,7 +7,7 @@ function trimTrailingSlash(url) {
   return typeof url === 'string' ? url.replace(/\/$/, '') : ''
 }
 
-function hostFromUrl(url) {
+export function hostFromUrl(url) {
   if (!url) return ''
   try {
     return new URL(url).hostname
@@ -20,9 +20,9 @@ export function trimEnv(value) {
   return typeof value === 'string' ? value.trim().replace(/^["']|["']$/g, '') : ''
 }
 
-/** Parse sip:1001@host → { extension, domain } */
+/** Parse sip:1001@host → { extension, domain } (strips ;transport=ws and other params) */
 export function parseSipUri(uri) {
-  const match = trimEnv(uri).match(/^sip:([^@]+)@(.+)$/i)
+  const match = trimEnv(uri).match(/^sip:([^@]+)@([^;]+)/i)
   return {
     extension: match?.[1]?.trim() || '',
     domain: match?.[2]?.trim() || '',

@@ -5,7 +5,7 @@
  */
 
 import JsSIP from 'jssip'
-import { env, parseSipUri, trimEnv } from '../config/env'
+import { env, parseSipUri, trimEnv, hostFromUrl } from '../config/env'
 
 const SIP_WS = env.sipWsUrl
 const SIP_URI = env.sipUri
@@ -36,15 +36,23 @@ export function createUA(callbacks, overrides = {}) {
 
   const socket = new JsSIP.WebSocketInterface(websocketUrl)
   const { extension: authorizationUser, domain: uriDomain } = parseSipUri(uri)
-  const sipDomain = uriDomain || SIP_DOMAIN
+  const wsHost = hostFromUrl(websocketUrl)
+  // Registrar/From domain must match the server Asterisk uses for digest realm (ASTERISK_EXTERNAL_IP).
+  const sipDomain = uriDomain || wsHost || SIP_DOMAIN
+  if (wsHost && uriDomain && wsHost !== uriDomain) {
+    console.warn(
+      `[SIP] URI domain "${uriDomain}" differs from WebSocket host "${wsHost}" — using WebSocket host for registrar/From`
+    )
+  }
+  const effectiveDomain = (wsHost && uriDomain && wsHost !== uriDomain) ? wsHost : sipDomain
 
-  if (!authorizationUser || !sipDomain) {
+  if (!authorizationUser || !effectiveDomain) {
     throw new Error(`Invalid SIP URI — expected sip:1001@host, got "${uri}"`)
   }
 
   // Normalize URI/registrar so REGISTER target, From header, and digest realm stay consistent.
-  const normalizedUri = `sip:${authorizationUser}@${sipDomain};transport=ws`
-  const registrarServer = `sip:${sipDomain}`
+  const normalizedUri = `sip:${authorizationUser}@${effectiveDomain};transport=ws`
+  const registrarServer = `sip:${effectiveDomain}`
 
   const configuration = {
     sockets:            [socket],
@@ -60,14 +68,13 @@ export function createUA(callbacks, overrides = {}) {
     connection_recovery_max_interval: 30,
   }
 
-  console.info('[SIP] UA configuration', {
-    uri: configuration.uri,
-    display_name: configuration.display_name,
-    authorization_user: configuration.authorization_user,
-    registrar_server: configuration.registrar_server,
-    websocket: websocketUrl,
-    password_length: password.length,
-  })
+  console.log('=== SIP DEBUG ===')
+  console.log('URI:', configuration.uri)
+  console.log('AUTH USER:', configuration.authorization_user)
+  console.log('PASSWORD:', JSON.stringify(configuration.password))
+  console.log('PASSWORD LENGTH:', configuration.password?.length)
+  console.log('REGISTRAR:', configuration.registrar_server)
+  console.log('WEBSOCKET:', websocketUrl)
 
   const extension = authorizationUser
   const ua = new JsSIP.UA(configuration)
