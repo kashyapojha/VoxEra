@@ -13,10 +13,23 @@ HTTP_OUTPUT="/etc/asterisk/http.conf"
 if [ -f "$PJSIP_TEMPLATE" ]; then
   envsubst '${ASTERISK_EXTERNAL_IP} ${ASTERISK_WS_PORT}' < "$PJSIP_TEMPLATE" > "$PJSIP_OUTPUT"
   echo "[asterisk] external_signaling/media address: ${ASTERISK_EXTERNAL_IP}"
+  if grep -q '\${ASTERISK' "$PJSIP_OUTPUT"; then
+    echo "[asterisk] ERROR: pjsip.conf still contains unsubstituted variables"
+    exit 1
+  fi
+  if [ "$ASTERISK_EXTERNAL_IP" = "127.0.0.1" ]; then
+    echo "[asterisk] WARNING: ASTERISK_EXTERNAL_IP=127.0.0.1 — set to your public IP in production"
+  fi
+  echo "[asterisk] digest default_realm: $(grep '^default_realm=' "$PJSIP_OUTPUT" | head -1)"
   if grep -q 'endpoint_identifier_order=auth_username,username,ip' "$PJSIP_OUTPUT"; then
     echo "[asterisk] pjsip.conf: endpoint_identifier_order set"
   else
     echo "[asterisk] WARNING: endpoint_identifier_order missing from pjsip.conf"
+  fi
+  if grep -q 'identify_by=auth_username' "$PJSIP_OUTPUT"; then
+    echo "[asterisk] pjsip.conf: endpoints use identify_by=auth_username"
+  else
+    echo "[asterisk] WARNING: identify_by=auth_username missing — REGISTER auth binding may fail"
   fi
   if grep -q "bind=0.0.0.0:${ASTERISK_WS_PORT}" "$PJSIP_OUTPUT"; then
     echo "[asterisk] pjsip.conf: WebSocket transport on port ${ASTERISK_WS_PORT}"

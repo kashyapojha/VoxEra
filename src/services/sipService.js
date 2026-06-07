@@ -175,10 +175,11 @@ export function createUA(callbacks, overrides = {}) {
   return ua
 }
 
-export function makeCall(ua, target, domain = SIP_DOMAIN) {
+export function makeCall(ua, target, domain) {
   if (!ua) throw new Error('UA not initialized')
 
-  const targetURI = `sip:${target}@${domain}`
+  const callDomain = domain || hostFromUrl(SIP_WS) || SIP_DOMAIN
+  const targetURI = `sip:${target}@${callDomain}`
 
   const options = {
     mediaConstraints: { audio: true, video: false },

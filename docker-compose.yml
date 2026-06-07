@@ -8,8 +8,8 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-}
-        VITE_SIP_WS_URL: ${VITE_SIP_WS_URL:-ws://172.29.175.83:8089/ws}
-        VITE_SIP_URI: ${VITE_SIP_URI:-sip:1001@172.29.175.83}
+        VITE_SIP_WS_URL: ${VITE_SIP_WS_URL:-ws://${ASTERISK_EXTERNAL_IP:-127.0.0.1}:8089/ws}
+        VITE_SIP_URI: ${VITE_SIP_URI:-sip:1001@${ASTERISK_EXTERNAL_IP:-127.0.0.1}}
         VITE_SIP_PASSWORD: ${VITE_SIP_PASSWORD:-1001}
     ports:
       - "${FRONTEND_PORT:-80}:80"

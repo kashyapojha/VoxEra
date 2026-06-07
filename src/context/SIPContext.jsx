@@ -219,10 +219,11 @@ export const SIPProvider = ({ children }) => {
     if (ext) {
       const trimmedExt = trimEnv(ext)
       const configuredUri = trimEnv(sipConfig.uri) || env.sipUri
+      // WebSocket host must match Asterisk default_realm / ASTERISK_EXTERNAL_IP.
       const domain =
+        hostFromUrl(websocketUrl) ||
         trimEnv(domainOverride) ||
         parseSipUri(configuredUri).domain ||
-        hostFromUrl(websocketUrl) ||
         env.sipDomain
       uri = `sip:${trimmedExt}@${domain}`
     }
