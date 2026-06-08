@@ -14,7 +14,7 @@ docker-entrypoint.sh
 
 `sorcery.conf` and `extconfig.conf` pin PJSIP to static file config (no realtime `ps_*` override from the base image).
 
-Mounted volumes (do **not** include pjsip.conf): `extensions.conf`, `rtp.conf`, `logs/`.
+Mounted volumes: `pjsip.conf.template`, `http.conf.template`, `sorcery.conf`, `extconfig.conf`, `extensions.conf`, `rtp.conf`, `logs/`. After `git pull`, `docker compose up -d asterisk` picks up template changes without rebuilding the image.
 
 ## PJSIP object chain (REGISTER)
 

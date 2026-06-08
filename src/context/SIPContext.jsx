@@ -259,10 +259,18 @@ export const SIPProvider = ({ children }) => {
         setIsRegistering(false)
         localStorage.removeItem('sip_registered')
       },
-      onRegistrationFailed: (cause) => {
+      onRegistrationFailed: (detail) => {
         setIsRegistered(false)
         setIsRegistering(false)
-        setRegistrationError(`Registration failed: ${cause}`)
+        let msg = `Registration failed: ${detail}`
+        if (String(detail).startsWith('404')) {
+          msg += ' — Asterisk rejected REGISTER (check pjsip.conf has aors=1001 on server).'
+        } else if (String(detail).startsWith('403')) {
+          msg += ' — Forbidden (wrong password or endpoint not allowed to register).'
+        } else if (String(detail).startsWith('401')) {
+          msg += ' — Authentication failed (check password is 1001).'
+        }
+        setRegistrationError(msg)
       },
       onIncomingCall: (session, caller) => {
         setIncomingCall(session)

@@ -98,10 +98,14 @@ time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml pull 
 
 # Asterisk pjsip.conf is generated from a template baked into the image at build time.
 # `up -d` alone reuses a cached image — config fixes in git never reach the running container.
-echo "[deploy] Rebuilding Asterisk image (pjsip template changes require --build)..."
+echo "[deploy] Rebuilding Asterisk image..."
 time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml build asterisk
 
-echo "[deploy] Starting containers..."
+echo "[deploy] Starting containers (recreate asterisk to apply mounted pjsip template)..."
+if ! time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml up -d --remove-orphans --force-recreate asterisk; then
+  echo "=== asterisk recreate failed ==="
+  exit 1
+fi
 if ! time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml up -d --remove-orphans; then
   echo "=== docker compose up failed ==="
   "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml ps -a || true

@@ -105,8 +105,11 @@ export function createUA(callbacks, overrides = {}) {
   })
 
   ua.on('registrationFailed', (e) => {
-    console.error(`[SIP] Registration failed — ${uri}`, e.cause)
-    callbacks.onRegistrationFailed?.(e.cause)
+    const code = e.response?.status_code
+    const reason = e.response?.reason_phrase
+    const detail = code ? `${code} ${reason || ''}`.trim() : String(e.cause || 'Unknown error')
+    console.error(`[SIP] Registration failed — ${uri}`, detail, e.response || e)
+    callbacks.onRegistrationFailed?.(detail, e)
   })
 
   ua.on('newRTCSession', (data) => {
