@@ -21,6 +21,8 @@ if [ -f "$PJSIP_TEMPLATE" ]; then
     echo "[asterisk] WARNING: ASTERISK_EXTERNAL_IP=127.0.0.1 — set to your public IP in production"
   fi
   echo "[asterisk] digest default_realm: $(grep '^default_realm=' "$PJSIP_OUTPUT" | head -1)"
+  echo "[asterisk] 1001-auth realm: $(awk '/^\[1001-auth\]/{f=1;next} /^\[/{f=0} f && /^realm=/{print; exit}' "$PJSIP_OUTPUT")"
+  echo "[asterisk] endpoint [1001] present: $(grep -c '^\[1001\]$' "$PJSIP_OUTPUT" || true)"
   if grep -q 'endpoint_identifier_order=auth_username,username,ip' "$PJSIP_OUTPUT"; then
     echo "[asterisk] pjsip.conf: endpoint_identifier_order set"
   else
