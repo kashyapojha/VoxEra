@@ -1,9 +1,13 @@
 ; MINIMAL WebRTC PJSIP — generated at container start (docker-entrypoint.sh)
-; Object chain: REGISTER username 1001 → endpoint [1001] → auth [1001-auth] → aor [1001-aor]
+; Object chain: REGISTER username 1001 → endpoint [1001] → auth [1001-auth] → aor [1001]
 ;
 ; CRITICAL: endpoint object MUST be named "1001" (not "1001-endpoint") so the first
 ; unauthenticated REGISTER is identified via From username and issues a REAL 401 tied
 ; to 1001-auth. A dummy 401 (no endpoint match) cannot be authenticated on retry.
+;
+; CRITICAL: AOR section name MUST match the REGISTER username (1001), not "1001-aor".
+; find_registrar_aor() matches To/Authorization username against endpoint aors= names;
+; a mismatch yields "AOR '' not found" and 404 after successful digest auth.
 
 [global]
 type=global
@@ -18,7 +22,7 @@ external_signaling_address=${ASTERISK_EXTERNAL_IP}
 external_media_address=${ASTERISK_EXTERNAL_IP}
 
 ; ================= 1001 =================
-[1001-aor]
+[1001]
 type=aor
 max_contacts=1
 remove_existing=yes
@@ -34,7 +38,7 @@ realm=${ASTERISK_EXTERNAL_IP}
 type=endpoint
 transport=transport-wss
 context=internal
-aors=1001-aor
+aors=1001
 auth=1001-auth
 from_user=1001
 from_domain=${ASTERISK_EXTERNAL_IP}
@@ -55,7 +59,7 @@ ice_support=yes
 rtcp_mux=yes
 
 ; ================= 1002 =================
-[1002-aor]
+[1002]
 type=aor
 max_contacts=1
 remove_existing=yes
@@ -71,7 +75,7 @@ realm=${ASTERISK_EXTERNAL_IP}
 type=endpoint
 transport=transport-wss
 context=internal
-aors=1002-aor
+aors=1002
 auth=1002-auth
 from_user=1002
 from_domain=${ASTERISK_EXTERNAL_IP}

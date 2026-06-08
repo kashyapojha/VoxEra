@@ -21,7 +21,7 @@ No `sorcery.conf` or `extconfig.conf` in this repo — if the base image ships r
 REGISTER From: 1001@13.62.237.148
   → endpoint [1001]           (name MUST match From username on 1st REGISTER)
   → auth [1001-auth]          (username=1001, realm=ASTERISK_EXTERNAL_IP)
-  → aor [1001-aor]            (contact binding after 200 OK)
+  → aor [1001]                (name MUST match REGISTER username for contact binding)
 ```
 
 ## Deploy
@@ -41,7 +41,7 @@ docker restart voxera-asterisk   # if digest cache is stale
 docker exec -it voxera-asterisk cat /etc/asterisk/pjsip.conf
 docker exec -it voxera-asterisk asterisk -rx "pjsip show auth 1001-auth"
 docker exec -it voxera-asterisk asterisk -rx "pjsip show endpoint 1001"
-docker exec -it voxera-asterisk asterisk -rx "pjsip show aor 1001-aor"
+docker exec -it voxera-asterisk asterisk -rx "pjsip show aor 1001"
 docker exec -it voxera-asterisk asterisk -rx "pjsip show contacts"
 docker exec -it voxera-asterisk asterisk -rx "pjsip set logger on"
 ```
@@ -50,7 +50,7 @@ Expected after successful REGISTER:
 
 - `1001-auth` → `realm=13.62.237.148` (not empty)
 - `pjsip show endpoint 1001` → `InAuth: 1001-auth/1001`
-- `pjsip show contacts` → contact for `1001-aor`
+- `pjsip show contacts` → contact for `1001`
 
 ## dtls_verify=Yes at runtime
 

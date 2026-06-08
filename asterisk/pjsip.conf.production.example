@@ -12,7 +12,7 @@ bind=0.0.0.0:8089
 external_signaling_address=13.62.237.148
 external_media_address=13.62.237.148
 
-[1001-aor]
+[1001]
 type=aor
 max_contacts=1
 remove_existing=yes
@@ -28,7 +28,7 @@ realm=13.62.237.148
 type=endpoint
 transport=transport-wss
 context=internal
-aors=1001-aor
+aors=1001
 auth=1001-auth
 from_user=1001
 from_domain=13.62.237.148
@@ -48,7 +48,7 @@ dtls_setup=actpass
 ice_support=yes
 rtcp_mux=yes
 
-[1002-aor]
+[1002]
 type=aor
 max_contacts=1
 remove_existing=yes
@@ -64,7 +64,7 @@ realm=13.62.237.148
 type=endpoint
 transport=transport-wss
 context=internal
-aors=1002-aor
+aors=1002
 auth=1002-auth
 from_user=1002
 from_domain=13.62.237.148
