@@ -8,7 +8,17 @@ import { useAuth } from '../context/AuthContext'
 import { env } from '../config/env'
 
 const Settings = () => {
-  const { isRegistered, register, unregister, sipConfig, setSipConfig, extension } = useSip()
+  const {
+    isRegistered,
+    isRegistering,
+    registrationError,
+    connectionStatus,
+    register,
+    unregister,
+    sipConfig,
+    setSipConfig,
+    extension,
+  } = useSip()
   const { user, logout } = useAuth()
 
   // Load saved settings — env-baked SIP values always win over stale localStorage
@@ -148,11 +158,29 @@ const Settings = () => {
                     />
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${isRegistered ? 'bg-green-500' : 'bg-red-500'}`} />
+                    <div className={`w-3 h-3 rounded-full ${
+                      isRegistered ? 'bg-green-500'
+                        : isRegistering || connectionStatus === 'connecting' ? 'bg-amber-500 animate-pulse'
+                          : connectionStatus === 'connected' ? 'bg-yellow-500'
+                            : 'bg-red-500'
+                    }`} />
                     <span className="text-sm text-gray-400">
-                      {isRegistered ? 'Registered' : 'Not Registered'}
+                      {isRegistered
+                        ? `Registered as ${extension}`
+                        : isRegistering
+                          ? 'Registering...'
+                          : connectionStatus === 'connected'
+                            ? 'Connected — waiting for REGISTER response'
+                            : connectionStatus === 'connecting'
+                              ? 'Connecting WebSocket...'
+                              : 'Not Registered'}
                     </span>
                   </div>
+                  {registrationError && (
+                    <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
+                      {registrationError}
+                    </p>
+                  )}
                   <div className="flex gap-3">
                     {isRegistered ? (
                       <motion.button
@@ -168,9 +196,10 @@ const Settings = () => {
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                         onClick={handleSIPRegister}
-                        className="px-6 py-3 rounded-xl bg-gradient-primary text-white font-semibold hover:shadow-[0_0_30px_rgba(91,46,255,0.5)] transition-all duration-300"
+                        disabled={isRegistering}
+                        className="px-6 py-3 rounded-xl bg-gradient-primary text-white font-semibold hover:shadow-[0_0_30px_rgba(91,46,255,0.5)] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        Register
+                        {isRegistering ? 'Registering...' : 'Register'}
                       </motion.button>
                     )}
                   </div>
