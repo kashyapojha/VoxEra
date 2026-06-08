@@ -12,7 +12,7 @@ bind=0.0.0.0:8089
 external_signaling_address=13.62.237.148
 external_media_address=13.62.237.148
 
-[1001]
+[1001-auth]
 type=auth
 auth_type=userpass
 username=1001
@@ -30,7 +30,8 @@ type=endpoint
 transport=transport-wss
 context=internal
 aors=1001
-auth=1001
+auth=1001-auth
+inbound_auth=1001-auth
 from_user=1001
 from_domain=13.62.237.148
 disallow=all
@@ -48,7 +49,7 @@ ice_support=yes
 media_use_received_transport=yes
 rtcp_mux=yes
 
-[1002]
+[1002-auth]
 type=auth
 auth_type=userpass
 username=1002
@@ -66,7 +67,8 @@ type=endpoint
 transport=transport-wss
 context=internal
 aors=1002
-auth=1002
+auth=1002-auth
+inbound_auth=1002-auth
 from_user=1002
 from_domain=13.62.237.148
 disallow=all

@@ -1,8 +1,9 @@
 ; WebRTC PJSIP — generated at container start (docker-entrypoint.sh)
 ;
-; Each extension uses ONE name (1001) for auth, aor, and endpoint sections.
-; Registrar binds REGISTER To-user "1001" → aors=1001 → [1001] type=aor.
-; Endpoint [1001] must match From-user on the first unauthenticated REGISTER.
+; Naming rules (do not mix styles):
+;   [1001-auth]  type=auth     → endpoint auth=1001-auth, inbound_auth=1001-auth
+;   [1001]       type=aor       → endpoint aors=1001  (AOR id MUST match REGISTER username)
+;   [1001]       type=endpoint  → id MUST match From-user on first REGISTER
 
 [global]
 type=global
@@ -17,7 +18,7 @@ external_signaling_address=${ASTERISK_EXTERNAL_IP}
 external_media_address=${ASTERISK_EXTERNAL_IP}
 
 ; ================= 1001 =================
-[1001]
+[1001-auth]
 type=auth
 auth_type=userpass
 username=1001
@@ -35,8 +36,8 @@ type=endpoint
 transport=transport-wss
 context=internal
 aors=1001
-auth=1001
-inbound_auth=1001
+auth=1001-auth
+inbound_auth=1001-auth
 from_user=1001
 from_domain=${ASTERISK_EXTERNAL_IP}
 disallow=all
@@ -55,7 +56,7 @@ media_use_received_transport=yes
 rtcp_mux=yes
 
 ; ================= 1002 =================
-[1002]
+[1002-auth]
 type=auth
 auth_type=userpass
 username=1002
@@ -73,8 +74,8 @@ type=endpoint
 transport=transport-wss
 context=internal
 aors=1002
-auth=1002
-inbound_auth=1002
+auth=1002-auth
+inbound_auth=1002-auth
 from_user=1002
 from_domain=${ASTERISK_EXTERNAL_IP}
 disallow=all

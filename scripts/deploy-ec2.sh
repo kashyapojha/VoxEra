@@ -142,6 +142,6 @@ echo "[deploy] Verifying Asterisk PJSIP config inside container..."
 if "${DOCKER[@]}" exec voxera-asterisk grep -q '^aors=1001$' /etc/asterisk/pjsip.conf 2>/dev/null; then
   echo "[deploy] OK: pjsip.conf has aors=1001"
 else
-  echo "[deploy] WARNING: pjsip.conf missing aors=1001 — REGISTER will return 404 Not Found"
-  "${DOCKER[@]}" exec voxera-asterisk grep -E '^\[(1001|1001-aor)\]|^aors=|^auth=' /etc/asterisk/pjsip.conf 2>/dev/null || true
+  echo "[deploy] WARNING: pjsip.conf missing aors=1001 or auth=1001-auth"
+  "${DOCKER[@]}" exec voxera-asterisk grep -E '^\[1001|^\[1001-auth\]|^aors=|^auth=' /etc/asterisk/pjsip.conf 2>/dev/null || true
 fi

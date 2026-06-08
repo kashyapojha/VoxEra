@@ -14,7 +14,7 @@ echo "=== Asterisk container ==="
 echo ""
 
 echo "=== pjsip.conf (1001 endpoint) ==="
-$C grep -E '^\[1001\]|^type=|^aors=|^auth=|^inbound_auth=|^realm=' /etc/asterisk/pjsip.conf 2>/dev/null || echo "Container not running or pjsip.conf missing"
+$C grep -E '^\[1001|^\[1001-auth\]|^type=|^aors=|^auth=|^inbound_auth=|^realm=' /etc/asterisk/pjsip.conf 2>/dev/null || echo "Container not running or pjsip.conf missing"
 echo ""
 
 echo "=== PJSIP objects ==="
@@ -22,16 +22,21 @@ $C asterisk -rx "pjsip show endpoint 1001" 2>/dev/null || true
 echo ""
 $C asterisk -rx "pjsip show aor 1001" 2>/dev/null || true
 echo ""
-$C asterisk -rx "pjsip show auth 1001" 2>/dev/null || true
+$C asterisk -rx "pjsip show auth 1001-auth" 2>/dev/null || true
 echo ""
 
 echo "=== Registered contacts ==="
 $C asterisk -rx "pjsip show contacts" 2>/dev/null || true
 echo ""
 
-if $C grep -q '^aors=1001$' /etc/asterisk/pjsip.conf 2>/dev/null; then
-  echo "OK: aors=1001 present — config looks correct for extension 1001"
+ok=1
+$C grep -q '^aors=1001$' /etc/asterisk/pjsip.conf 2>/dev/null || ok=0
+$C grep -q '^auth=1001-auth$' /etc/asterisk/pjsip.conf 2>/dev/null || ok=0
+$C grep -q '^\[1001-auth\]$' /etc/asterisk/pjsip.conf 2>/dev/null || ok=0
+
+if [ "$ok" -eq 1 ]; then
+  echo "OK: aors=1001 + auth=1001-auth + [1001-auth] section present"
 else
-  echo "FAIL: aors=1001 missing — REGISTER will fail with 404"
-  echo "Fix: git pull && docker compose --env-file .env -f docker-compose.prod.yml up -d asterisk"
+  echo "FAIL: config mismatch — need [1001-auth] section, aors=1001, auth=1001-auth"
+  echo "Fix: git pull && docker compose --env-file .env -f docker-compose.prod.yml up -d --force-recreate asterisk"
 fi

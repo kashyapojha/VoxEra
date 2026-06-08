@@ -269,6 +269,8 @@ export const SIPProvider = ({ children }) => {
           msg += ' — Forbidden (wrong password or endpoint not allowed to register).'
         } else if (String(detail).startsWith('401')) {
           msg += ' — Authentication failed (check password is 1001).'
+        } else if (String(detail).startsWith('500')) {
+          msg += ' — Server error (often auth object name mismatch: need auth=1001-auth on server).'
         }
         setRegistrationError(msg)
       },

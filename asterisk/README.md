@@ -20,12 +20,12 @@ Mounted volumes: `pjsip.conf.template`, `http.conf.template`, `sorcery.conf`, `e
 
 ```
 REGISTER From/To: 1001@13.62.237.148
-  → endpoint [1001]     (name = From username)
-  → auth [1001]         (auth=1001 on endpoint)
-  → aor [1001]          (aors=1001 — MUST match To username)
+  → endpoint [1001]        (name = From username)
+  → auth [1001-auth]       (endpoint auth=1001-auth — MUST match section name exactly)
+  → aor [1001]             (endpoint aors=1001 — AOR id MUST match REGISTER username)
 ```
 
-All three sections use the same name `[1001]` with different `type=` values. Do **not** use `1001-aor` or `1001-auth` — the registrar matches the REGISTER username against `aors=` names; a mismatch yields `AOR '' not found` and 404.
+Do **not** use `auth=1001` unless you also have `[1001] type=auth` as the only `[1001]` auth block. Three `[1001]` sections (auth+aor+endpoint) can prevent Asterisk from loading the auth object → `Couldn't find auth '1001'` and **500**.
 
 ## Deploy (rebuild required)
 
@@ -41,8 +41,8 @@ On EC2, `scripts/deploy-ec2.sh` runs `build asterisk` on every deploy. If you de
 Check startup logs for:
 
 ```text
-[asterisk] endpoint [1001] aors: aors=1001
-[asterisk] endpoint [1001] auth: auth=1001
+[asterisk] endpoint aors: aors=1001
+[asterisk] endpoint auth: auth=1001-auth
 ```
 
 ## Verify
@@ -51,14 +51,14 @@ Check startup logs for:
 docker exec -it voxera-asterisk cat /etc/asterisk/pjsip.conf
 docker exec -it voxera-asterisk asterisk -rx "pjsip show endpoint 1001"
 docker exec -it voxera-asterisk asterisk -rx "pjsip show aor 1001"
-docker exec -it voxera-asterisk asterisk -rx "pjsip show auth 1001"
+docker exec -it voxera-asterisk asterisk -rx "pjsip show auth 1001-auth"
 docker exec -it voxera-asterisk asterisk -rx "pjsip show contacts"
 docker exec -it voxera-asterisk asterisk -rx "pjsip set logger on"
 ```
 
 Expected after successful REGISTER:
 
-- `pjsip show endpoint 1001` → `aors: 1001`, `auth: 1001/1001`
+- `pjsip show endpoint 1001` → `aors: 1001`, `inbound_auth: 1001-auth/1001`
 - `pjsip show contacts` → `1001/sip:...@... OK`
 
 ## WebSocket port
