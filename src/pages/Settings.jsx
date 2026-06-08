@@ -5,7 +5,7 @@ import { User, Bell, Shield, Phone, Globe, Save, LogOut } from 'lucide-react'
 import GlassCard from '../components/UI/GlassCard'
 import { useSip } from '../context/SIPContext'
 import { useAuth } from '../context/AuthContext'
-import { env } from '../config/env'
+import { env, parseSipUri } from '../config/env'
 
 const Settings = () => {
   const {
@@ -43,13 +43,11 @@ const Settings = () => {
   }, [setSipConfig])
 
   const handleSIPRegister = () => {
-    const input = (sipConfig.uri || '').trim()
-    // Expected: sip:<ext>@<domain>
-    const match = input.match(/^sip:([^@]+)@(.+)$/i)
-    const ext = match?.[1] || input.split('@')[0]?.replace('sip:', '') || extension || ''
-    const domain = match?.[2]
-    register(ext, sipConfig.password, domain)
+    const { extension: ext, domain } = parseSipUri(sipConfig.uri || env.sipUri)
+    register(ext || extension, sipConfig.password, domain)
   }
+
+  const parsedSip = parseSipUri(sipConfig.uri || env.sipUri)
 
   const handleSIPUnregister = () => {
     unregister()
@@ -142,8 +140,18 @@ const Settings = () => {
                       type="text"
                       value={sipConfig.uri}
                       onChange={(e) => setSipConfig({ ...sipConfig, uri: e.target.value })}
-                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-accent/50 transition-colors"
+                      placeholder="sip:1001@13.62.237.148"
+                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-accent/50 transition-colors font-mono text-sm"
                     />
+                    <p className="mt-1.5 text-xs text-gray-500">
+                      Extension (username) is the part before{' '}
+                      <span className="font-mono text-gray-400">@</span>
+                      {parsedSip.extension ? (
+                        <> — currently <span className="font-mono text-accent">{parsedSip.extension}</span></>
+                      ) : (
+                        <> — e.g. <span className="font-mono text-gray-400">1001</span> in <span className="font-mono text-gray-400">sip:1001@host</span></>
+                      )}
+                    </p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">

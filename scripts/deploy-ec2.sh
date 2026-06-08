@@ -96,7 +96,12 @@ fi
 echo "[deploy] Pulling app images..."
 time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml pull backend frontend postgres
 
-echo "[deploy] Starting containers (asterisk builds only if image missing)..."
+# Asterisk pjsip.conf is generated from a template baked into the image at build time.
+# `up -d` alone reuses a cached image — config fixes in git never reach the running container.
+echo "[deploy] Rebuilding Asterisk image (pjsip template changes require --build)..."
+time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml build asterisk
+
+echo "[deploy] Starting containers..."
 if ! time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml up -d --remove-orphans; then
   echo "=== docker compose up failed ==="
   "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml ps -a || true
@@ -128,3 +133,11 @@ done
 curl -fsS http://localhost/api/health
 echo ""
 "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml ps
+
+echo "[deploy] Verifying Asterisk PJSIP config inside container..."
+if "${DOCKER[@]}" exec voxera-asterisk grep -q '^aors=1001$' /etc/asterisk/pjsip.conf 2>/dev/null; then
+  echo "[deploy] OK: pjsip.conf has aors=1001"
+else
+  echo "[deploy] WARNING: pjsip.conf missing aors=1001 — REGISTER will return 404 Not Found"
+  "${DOCKER[@]}" exec voxera-asterisk grep -E '^\[(1001|1001-aor)\]|^aors=|^auth=' /etc/asterisk/pjsip.conf 2>/dev/null || true
+fi
