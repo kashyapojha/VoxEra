@@ -2,7 +2,7 @@
 
 [global]
 type=global
-endpoint_identifier_order=auth_username,username,ip
+endpoint_identifier_order=username,auth_username,ip
 default_realm=13.62.237.148
 
 [transport-wss]
@@ -13,11 +13,6 @@ external_signaling_address=13.62.237.148
 external_media_address=13.62.237.148
 
 [1001]
-type=aor
-max_contacts=1
-remove_existing=yes
-
-[1001-auth]
 type=auth
 auth_type=userpass
 username=1001
@@ -25,11 +20,17 @@ password=1001
 realm=13.62.237.148
 
 [1001]
+type=aor
+max_contacts=5
+remove_existing=yes
+qualify_frequency=30
+
+[1001]
 type=endpoint
 transport=transport-wss
 context=internal
 aors=1001
-auth=1001-auth
+auth=1001
 from_user=1001
 from_domain=13.62.237.148
 disallow=all
@@ -39,21 +40,15 @@ force_rport=yes
 rewrite_contact=yes
 rtp_symmetric=yes
 direct_media=no
-identify_by=auth_username,username
-use_avpf=yes
-media_encryption=dtls
+identify_by=username,auth_username
 dtls_auto_generate_cert=yes
-dtls_verify=no
+dtls_verify=fingerprint
 dtls_setup=actpass
 ice_support=yes
+media_use_received_transport=yes
 rtcp_mux=yes
 
 [1002]
-type=aor
-max_contacts=1
-remove_existing=yes
-
-[1002-auth]
 type=auth
 auth_type=userpass
 username=1002
@@ -61,11 +56,17 @@ password=1002
 realm=13.62.237.148
 
 [1002]
+type=aor
+max_contacts=5
+remove_existing=yes
+qualify_frequency=30
+
+[1002]
 type=endpoint
 transport=transport-wss
 context=internal
 aors=1002
-auth=1002-auth
+auth=1002
 from_user=1002
 from_domain=13.62.237.148
 disallow=all
@@ -75,11 +76,10 @@ force_rport=yes
 rewrite_contact=yes
 rtp_symmetric=yes
 direct_media=no
-identify_by=auth_username,username
-use_avpf=yes
-media_encryption=dtls
+identify_by=username,auth_username
 dtls_auto_generate_cert=yes
-dtls_verify=no
+dtls_verify=fingerprint
 dtls_setup=actpass
 ice_support=yes
+media_use_received_transport=yes
 rtcp_mux=yes

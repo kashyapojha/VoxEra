@@ -1,17 +1,12 @@
-; MINIMAL WebRTC PJSIP — generated at container start (docker-entrypoint.sh)
-; Object chain: REGISTER username 1001 → endpoint [1001] → auth [1001-auth] → aor [1001]
+; WebRTC PJSIP — generated at container start (docker-entrypoint.sh)
 ;
-; CRITICAL: endpoint object MUST be named "1001" (not "1001-endpoint") so the first
-; unauthenticated REGISTER is identified via From username and issues a REAL 401 tied
-; to 1001-auth. A dummy 401 (no endpoint match) cannot be authenticated on retry.
-;
-; CRITICAL: AOR section name MUST match the REGISTER username (1001), not "1001-aor".
-; find_registrar_aor() matches To/Authorization username against endpoint aors= names;
-; a mismatch yields "AOR '' not found" and 404 after successful digest auth.
+; Each extension uses ONE name (1001) for auth, aor, and endpoint sections.
+; Registrar binds REGISTER To-user "1001" → aors=1001 → [1001] type=aor.
+; Endpoint [1001] must match From-user on the first unauthenticated REGISTER.
 
 [global]
 type=global
-endpoint_identifier_order=auth_username,username,ip
+endpoint_identifier_order=username,auth_username,ip
 default_realm=${ASTERISK_EXTERNAL_IP}
 
 [transport-wss]
@@ -23,11 +18,6 @@ external_media_address=${ASTERISK_EXTERNAL_IP}
 
 ; ================= 1001 =================
 [1001]
-type=aor
-max_contacts=1
-remove_existing=yes
-
-[1001-auth]
 type=auth
 auth_type=userpass
 username=1001
@@ -35,11 +25,17 @@ password=1001
 realm=${ASTERISK_EXTERNAL_IP}
 
 [1001]
+type=aor
+max_contacts=5
+remove_existing=yes
+qualify_frequency=30
+
+[1001]
 type=endpoint
 transport=transport-wss
 context=internal
 aors=1001
-auth=1001-auth
+auth=1001
 from_user=1001
 from_domain=${ASTERISK_EXTERNAL_IP}
 disallow=all
@@ -49,22 +45,16 @@ force_rport=yes
 rewrite_contact=yes
 rtp_symmetric=yes
 direct_media=no
-identify_by=auth_username,username
-use_avpf=yes
-media_encryption=dtls
+identify_by=username,auth_username
 dtls_auto_generate_cert=yes
-dtls_verify=no
+dtls_verify=fingerprint
 dtls_setup=actpass
 ice_support=yes
+media_use_received_transport=yes
 rtcp_mux=yes
 
 ; ================= 1002 =================
 [1002]
-type=aor
-max_contacts=1
-remove_existing=yes
-
-[1002-auth]
 type=auth
 auth_type=userpass
 username=1002
@@ -72,11 +62,17 @@ password=1002
 realm=${ASTERISK_EXTERNAL_IP}
 
 [1002]
+type=aor
+max_contacts=5
+remove_existing=yes
+qualify_frequency=30
+
+[1002]
 type=endpoint
 transport=transport-wss
 context=internal
 aors=1002
-auth=1002-auth
+auth=1002
 from_user=1002
 from_domain=${ASTERISK_EXTERNAL_IP}
 disallow=all
@@ -86,11 +82,10 @@ force_rport=yes
 rewrite_contact=yes
 rtp_symmetric=yes
 direct_media=no
-identify_by=auth_username,username
-use_avpf=yes
-media_encryption=dtls
+identify_by=username,auth_username
 dtls_auto_generate_cert=yes
-dtls_verify=no
+dtls_verify=fingerprint
 dtls_setup=actpass
 ice_support=yes
+media_use_received_transport=yes
 rtcp_mux=yes

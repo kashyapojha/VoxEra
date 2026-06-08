@@ -10,6 +10,9 @@ PJSIP_OUTPUT="/etc/asterisk/pjsip.conf"
 HTTP_TEMPLATE="/etc/asterisk/templates/http.conf.template"
 HTTP_OUTPUT="/etc/asterisk/http.conf"
 
+# Base image may ship wizard/realtime configs that shadow static pjsip.conf.
+rm -f /etc/asterisk/pjsip_wizard.conf 2>/dev/null || true
+
 if [ -f "$PJSIP_TEMPLATE" ]; then
   envsubst '${ASTERISK_EXTERNAL_IP} ${ASTERISK_WS_PORT}' < "$PJSIP_TEMPLATE" > "$PJSIP_OUTPUT"
   echo "[asterisk] external_signaling/media address: ${ASTERISK_EXTERNAL_IP}"
@@ -21,17 +24,21 @@ if [ -f "$PJSIP_TEMPLATE" ]; then
     echo "[asterisk] WARNING: ASTERISK_EXTERNAL_IP=127.0.0.1 — set to your public IP in production"
   fi
   echo "[asterisk] digest default_realm: $(grep '^default_realm=' "$PJSIP_OUTPUT" | head -1)"
-  echo "[asterisk] 1001-auth realm: $(awk '/^\[1001-auth\]/{f=1;next} /^\[/{f=0} f && /^realm=/{print; exit}' "$PJSIP_OUTPUT")"
-  echo "[asterisk] endpoint [1001] present: $(grep -c '^\[1001\]$' "$PJSIP_OUTPUT" || true)"
-  if grep -q 'endpoint_identifier_order=auth_username,username,ip' "$PJSIP_OUTPUT"; then
+  echo "[asterisk] 1001 auth realm: $(awk '/^\[1001\]/{f=1;next} /^\[/{f=0} f && /^realm=/{print; exit}' "$PJSIP_OUTPUT")"
+  echo "[asterisk] endpoint [1001] aors: $(awk '/^\[1001\]/{n++; if(n==3){f=1;next}} /^\[/{if(n==3)f=0} f && /^aors=/{print; exit}' "$PJSIP_OUTPUT")"
+  echo "[asterisk] endpoint [1001] auth: $(awk '/^\[1001\]/{n++; if(n==3){f=1;next}} /^\[/{if(n==3)f=0} f && /^auth=/{print; exit}' "$PJSIP_OUTPUT")"
+  if ! grep -q '^aors=1001$' "$PJSIP_OUTPUT"; then
+    echo "[asterisk] ERROR: endpoint 1001 missing aors=1001 — registrar will return 404"
+    exit 1
+  fi
+  if ! grep -q '^auth=1001$' "$PJSIP_OUTPUT"; then
+    echo "[asterisk] ERROR: endpoint 1001 missing auth=1001"
+    exit 1
+  fi
+  if grep -q 'endpoint_identifier_order=username,auth_username,ip' "$PJSIP_OUTPUT"; then
     echo "[asterisk] pjsip.conf: endpoint_identifier_order set"
   else
     echo "[asterisk] WARNING: endpoint_identifier_order missing from pjsip.conf"
-  fi
-  if grep -q 'identify_by=auth_username' "$PJSIP_OUTPUT"; then
-    echo "[asterisk] pjsip.conf: endpoints use identify_by=auth_username"
-  else
-    echo "[asterisk] WARNING: identify_by=auth_username missing — REGISTER auth binding may fail"
   fi
   if grep -q "bind=0.0.0.0:${ASTERISK_WS_PORT}" "$PJSIP_OUTPUT"; then
     echo "[asterisk] pjsip.conf: WebSocket transport on port ${ASTERISK_WS_PORT}"
