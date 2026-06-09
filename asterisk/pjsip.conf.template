@@ -2,6 +2,7 @@
 
 [global]
 type=global
+endpoint_identifier_order=username,auth_username
 default_realm=${ASTERISK_EXTERNAL_IP}
 
 [transport-wss]
@@ -20,7 +21,7 @@ username=1001
 password=1001
 realm=${ASTERISK_EXTERNAL_IP}
 
-[1001-aor]
+[1001]
 type=aor
 max_contacts=5
 remove_existing=yes
@@ -30,9 +31,10 @@ qualify_frequency=30
 type=endpoint
 transport=transport-wss
 context=internal
-aors=1001-aor
+aors=1001
 auth=1001-auth
-identify_by=username
+inbound_auth=1001-auth
+identify_by=username,auth_username
 from_user=1001
 from_domain=${ASTERISK_EXTERNAL_IP}
 
@@ -64,7 +66,7 @@ username=1002
 password=1002
 realm=${ASTERISK_EXTERNAL_IP}
 
-[1002-aor]
+[1002]
 type=aor
 max_contacts=5
 remove_existing=yes
@@ -74,9 +76,10 @@ qualify_frequency=30
 type=endpoint
 transport=transport-wss
 context=internal
-aors=1002-aor
+aors=1002
 auth=1002-auth
-identify_by=username
+inbound_auth=1002-auth
+identify_by=username,auth_username
 from_user=1002
 from_domain=${ASTERISK_EXTERNAL_IP}
 
