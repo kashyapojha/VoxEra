@@ -1,0 +1,4 @@
+# Asterisk/Linux configs must use LF — CRLF breaks PJSIP object loading on EC2.
+asterisk/** text eol=lf
+scripts/** text eol=lf
+*.sh text eol=lf

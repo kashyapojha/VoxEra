@@ -71,15 +71,11 @@ services:
     container_name: voxera-asterisk
     restart: unless-stopped
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "asterisk -rx 'module show like res_http_websocket' | grep -q res_http_websocket && asterisk -rx 'pjsip show endpoint 1001' | grep -q 'Endpoint:' && asterisk -rx 'pjsip show aor 1001' | grep -q 'Aor:'",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 25s
+      test: ["CMD", "/usr/local/bin/asterisk-healthcheck.sh"]
+      interval: 15s
+      timeout: 20s
+      retries: 5
+      start_period: 40s
     ports:
       - "${ASTERISK_WSS_PORT:-8089}:${ASTERISK_WSS_PORT:-8089}"
       - "${ASTERISK_SIP_PORT:-5060}:5060/udp"

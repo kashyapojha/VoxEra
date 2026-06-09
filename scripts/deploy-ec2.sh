@@ -148,16 +148,26 @@ fi
 
 "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml ps
 
-echo "Waiting for Asterisk health..."
-for i in $(seq 1 45); do
-  AST_HEALTH="$("${DOCKER[@]}" inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' voxera-asterisk 2>/dev/null || echo "missing")"
-  if [ "$AST_HEALTH" = "healthy" ]; then
-    echo "Asterisk healthy"
+echo "Waiting for Asterisk PJSIP (endpoint + AOR 1001)..."
+for i in $(seq 1 60); do
+  AOR_OUT="$("${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show aor 1001" 2>&1 || true)"
+  EP_OUT="$("${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show endpoint 1001" 2>&1 || true)"
+  if printf '%s' "$AOR_OUT" | grep -qv 'Unable to find' \
+    && printf '%s' "$EP_OUT" | grep -qv 'Unable to find'; then
+    echo "Asterisk PJSIP ready"
     break
   fi
-  if [ "$i" -eq 45 ]; then
-    echo "=== Asterisk health check timed out (status: ${AST_HEALTH}) ==="
-    "${DOCKER[@]}" logs voxera-asterisk --tail 80 2>&1 || true
+  if [ "$i" -eq 60 ]; then
+    AST_HEALTH="$("${DOCKER[@]}" inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' voxera-asterisk 2>/dev/null || echo "missing")"
+    echo "=== Asterisk PJSIP not ready (docker health: ${AST_HEALTH}) ==="
+    printf '%s\n' "$AOR_OUT"
+    printf '%s\n' "$EP_OUT"
+    "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show aors" 2>&1 || true
+    "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show endpoints" 2>&1 || true
+    if "${DOCKER[@]}" exec voxera-asterisk grep -q $'\r' /etc/asterisk/pjsip.conf 2>/dev/null; then
+      echo "[deploy] FAIL: pjsip.conf has Windows CRLF line endings — rebuild asterisk image after git pull"
+    fi
+    "${DOCKER[@]}" logs voxera-asterisk --tail 120 2>&1 || true
     exit 1
   fi
   sleep 2

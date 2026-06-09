@@ -9,6 +9,13 @@ if [ -z "$ASTERISK_EXTERNAL_IP" ]; then
 fi
 export ASTERISK_EXTERNAL_IP ASTERISK_WS_PORT
 
+# Windows-checked-out templates often have CRLF; Asterisk on Linux treats type=aor\r as invalid.
+strip_crlf() {
+  tr -d '\r'
+}
+
+mkdir -p /var/run/asterisk /var/log/asterisk 2>/dev/null || true
+
 PJSIP_TEMPLATE="/etc/asterisk/templates/pjsip.conf.template"
 PJSIP_OUTPUT="/etc/asterisk/pjsip.conf"
 HTTP_TEMPLATE="/etc/asterisk/templates/http.conf.template"
@@ -17,8 +24,12 @@ HTTP_OUTPUT="/etc/asterisk/http.conf"
 rm -f /etc/asterisk/pjsip_wizard.conf 2>/dev/null || true
 
 if [ -f "$PJSIP_TEMPLATE" ]; then
-  envsubst '${ASTERISK_EXTERNAL_IP} ${ASTERISK_WS_PORT}' < "$PJSIP_TEMPLATE" > "$PJSIP_OUTPUT"
+  envsubst '${ASTERISK_EXTERNAL_IP} ${ASTERISK_WS_PORT}' < "$PJSIP_TEMPLATE" | strip_crlf > "$PJSIP_OUTPUT"
   echo "[asterisk] external_signaling/media address: ${ASTERISK_EXTERNAL_IP}"
+  if grep -q $'\r' "$PJSIP_OUTPUT" 2>/dev/null; then
+    echo "[asterisk] ERROR: pjsip.conf contains CR characters — PJSIP objects will not load"
+    exit 1
+  fi
   if grep -q '\${ASTERISK' "$PJSIP_OUTPUT"; then
     echo "[asterisk] ERROR: pjsip.conf still contains unsubstituted variables"
     exit 1
@@ -53,7 +64,7 @@ if [ -f "$PJSIP_TEMPLATE" ]; then
 fi
 
 if [ -f "$HTTP_TEMPLATE" ]; then
-  envsubst '${ASTERISK_WS_PORT}' < "$HTTP_TEMPLATE" > "$HTTP_OUTPUT"
+  envsubst '${ASTERISK_WS_PORT}' < "$HTTP_TEMPLATE" | strip_crlf > "$HTTP_OUTPUT"
   if grep -q "bindport=${ASTERISK_WS_PORT}" "$HTTP_OUTPUT"; then
     echo "[asterisk] http.conf: listening on port ${ASTERISK_WS_PORT}"
   else
