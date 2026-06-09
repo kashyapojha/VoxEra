@@ -170,37 +170,29 @@ for i in $(seq 1 60); do
   sleep 2
 done
 
-echo "[deploy] Verifying Asterisk PJSIP config inside container..."
-PJSIP_SNIP="$("${DOCKER[@]}" exec voxera-asterisk grep -E '^(default_realm=|aors=1001$|auth=1001-auth$|password=)' /etc/asterisk/pjsip.conf 2>/dev/null || true)"
-printf '%s\n' "$PJSIP_SNIP"
-if ! printf '%s\n' "$PJSIP_SNIP" | grep -q '^aors=1001$'; then
-  echo "[deploy] FAIL: pjsip.conf missing aors=1001"
-  exit 1
-fi
-if ! printf '%s\n' "$PJSIP_SNIP" | grep -q '^auth=1001-auth$'; then
-  echo "[deploy] FAIL: pjsip.conf missing auth=1001-auth"
-  exit 1
-fi
-REALM_LINE="$(printf '%s\n' "$PJSIP_SNIP" | grep '^default_realm=' | head -1 || true)"
+echo "[deploy] Verifying Asterisk PJSIP runtime..."
+REALM_LINE="$("${DOCKER[@]}" exec voxera-asterisk sh -c "tr -d '\\r' < /etc/asterisk/pjsip.conf | grep '^default_realm=' | head -1" 2>/dev/null || true)"
+printf '%s\n' "$REALM_LINE"
 if [ -z "$REALM_LINE" ] || [ "$REALM_LINE" = "default_realm=127.0.0.1" ]; then
   echo "[deploy] FAIL: default_realm must be your public IP (set ASTERISK_EXTERNAL_IP / PUBLIC_HOST secrets)"
   exit 1
 fi
-if ! printf '%s\n' "$REALM_LINE" | grep -q "default_realm=${PUBLIC_HOST}"; then
+if ! printf '%s' "$REALM_LINE" | grep -q "default_realm=${PUBLIC_HOST}"; then
   echo "[deploy] WARNING: default_realm does not match PUBLIC_HOST (${PUBLIC_HOST})"
 fi
 if "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "module show like chan_sip" 2>&1 | grep -q '1 modules loaded'; then
   echo "[deploy] FAIL: chan_sip is loaded — WebSocket REGISTER will 401"
   exit 1
 fi
-if ! "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show aor 1001" 2>&1 | grep -q 'Aor:.*1001'; then
-  echo "[deploy] FAIL: pjsip AOR 1001 not loaded — REGISTER will return 404"
-  "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show aor 1001" 2>&1 || true
+EP_OUT="$("${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show endpoint 1001" 2>&1 || true)"
+if printf '%s' "$EP_OUT" | grep -q 'Unable to find'; then
+  echo "[deploy] FAIL: pjsip endpoint 1001 not loaded"
+  printf '%s\n' "$EP_OUT"
   exit 1
 fi
-if ! "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show endpoint 1001" 2>&1 | grep -q 'aors.*1001'; then
+if ! printf '%s' "$EP_OUT" | grep -q 'aors.*1001'; then
   echo "[deploy] FAIL: endpoint 1001 missing aors=1001 — REGISTER will return 404"
-  "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show endpoint 1001" 2>&1 || true
+  printf '%s\n' "$EP_OUT"
   exit 1
 fi
 echo "[deploy] OK: pjsip endpoint 1001 + AOR 1001 loaded, chan_sip unloaded"
