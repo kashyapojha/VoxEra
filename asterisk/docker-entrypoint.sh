@@ -34,6 +34,10 @@ if [ -f "$PJSIP_TEMPLATE" ]; then
     echo "[asterisk] ERROR: endpoint missing auth=1001-auth — digest auth will fail with 500"
     exit 1
   fi
+  if ! grep -q '^inbound_auth=1001-auth$' "$PJSIP_OUTPUT"; then
+    echo "[asterisk] ERROR: endpoint missing inbound_auth=1001-auth — REGISTER digest will fail with 401"
+    exit 1
+  fi
   if grep -q "bind=0.0.0.0:${ASTERISK_WS_PORT}" "$PJSIP_OUTPUT"; then
     echo "[asterisk] pjsip.conf: WebSocket transport on port ${ASTERISK_WS_PORT}"
   else

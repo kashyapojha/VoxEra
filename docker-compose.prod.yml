@@ -75,6 +75,7 @@ services:
     volumes:
       - ./asterisk/pjsip.conf.template:/etc/asterisk/templates/pjsip.conf.template:ro
       - ./asterisk/http.conf.template:/etc/asterisk/templates/http.conf.template:ro
+      - ./asterisk/modules.conf:/etc/asterisk/modules.conf:ro
       - ./asterisk/sorcery.conf:/etc/asterisk/sorcery.conf:ro
       - ./asterisk/extconfig.conf:/etc/asterisk/extconfig.conf:ro
       - ./asterisk/extensions.conf:/etc/asterisk/extensions.conf:ro

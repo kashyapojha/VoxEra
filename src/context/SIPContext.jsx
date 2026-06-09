@@ -268,7 +268,7 @@ export const SIPProvider = ({ children }) => {
         } else if (String(detail).startsWith('403')) {
           msg += ' — Forbidden (wrong password or endpoint not allowed to register).'
         } else if (String(detail).startsWith('401')) {
-          msg += ' — Authentication failed (check password is 1001).'
+          msg += ' — Digest auth failed (password must match pjsip.conf; on server ensure chan_sip is unloaded and inbound_auth=1001-auth).'
         } else if (String(detail).startsWith('500')) {
           msg += ' — Server error (often auth object name mismatch: need auth=1001-auth on server).'
         }

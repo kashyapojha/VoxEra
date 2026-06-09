@@ -50,8 +50,9 @@ export function createUA(callbacks, overrides = {}) {
     throw new Error(`Invalid SIP URI — expected sip:1001@host, got "${uri}"`)
   }
 
-  // Normalize URI/registrar so REGISTER target, From header, and digest realm stay consistent.
-  const normalizedUri = `sip:${authorizationUser}@${effectiveDomain};transport=ws`
+  // WebSocket transport is selected by the socket — do not add ;transport=ws to the AOR URI
+  // or digest auth may not match Asterisk's REGISTER Request-URI.
+  const normalizedUri = `sip:${authorizationUser}@${effectiveDomain}`
   const registrarServer = `sip:${effectiveDomain}`
 
   const configuration = {

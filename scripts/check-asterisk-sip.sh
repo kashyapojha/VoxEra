@@ -17,6 +17,10 @@ echo "=== pjsip.conf (1001 endpoint) ==="
 $C grep -E '^\[1001|^\[1001-auth\]|^type=|^aors=|^auth=|^inbound_auth=|^realm=' /etc/asterisk/pjsip.conf 2>/dev/null || echo "Container not running or pjsip.conf missing"
 echo ""
 
+echo "=== chan_sip (must be unloaded — otherwise WebSocket REGISTER hits wrong module) ==="
+$C asterisk -rx "module show like chan_sip" 2>/dev/null || true
+echo ""
+
 echo "=== PJSIP objects ==="
 $C asterisk -rx "pjsip show endpoint 1001" 2>/dev/null || true
 echo ""
@@ -32,7 +36,13 @@ echo ""
 ok=1
 $C grep -q '^aors=1001$' /etc/asterisk/pjsip.conf 2>/dev/null || ok=0
 $C grep -q '^auth=1001-auth$' /etc/asterisk/pjsip.conf 2>/dev/null || ok=0
+$C grep -q '^inbound_auth=1001-auth$' /etc/asterisk/pjsip.conf 2>/dev/null || ok=0
 $C grep -q '^\[1001-auth\]$' /etc/asterisk/pjsip.conf 2>/dev/null || ok=0
+chan_loaded="$($C asterisk -rx "module show like chan_sip" 2>/dev/null | awk '/modules loaded/ {print $1}' | head -1)"
+if [ "${chan_loaded:-0}" != "0" ]; then
+  echo "FAIL: chan_sip is loaded — WebSocket REGISTER will 401 against wrong module"
+  ok=0
+fi
 
 if [ "$ok" -eq 1 ]; then
   echo "OK: aors=1001 + auth=1001-auth + [1001-auth] section present"
