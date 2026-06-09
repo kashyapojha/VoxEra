@@ -17,7 +17,8 @@ const Landing = () => {
   // Socket.io connection for real-time feedback
   useEffect(() => {
     const socket = io({
-      transports: ['websocket', 'polling']
+      path: '/socket.io',
+      transports: ['websocket', 'polling'],
     })
 
     socket.on('feedback_init', (initialFeedbacks) => {

@@ -18,12 +18,17 @@ export const SocketProvider = ({ children }) => {
   const [lastMessage, setLastMessage] = useState(null)
 
   useEffect(() => {
-    // Empty apiUrl = same-origin (nginx or Vite proxy)
-    const backend = env.apiUrl
-    const socketInstance = io(backend, {
+    // Empty apiUrl = same-origin (nginx or Vite dev proxy on /socket.io)
+    const socketOptions = {
+      path: '/socket.io',
       autoConnect: true,
-      transports: ['websocket', 'polling']
-    })
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 10,
+    }
+    const socketInstance = env.apiUrl
+      ? io(env.apiUrl, socketOptions)
+      : io(socketOptions)
 
     socketInstance.on('connect', () => {
       setIsConnected(true)

@@ -101,9 +101,9 @@ time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml pull 
 echo "[deploy] Rebuilding Asterisk image..."
 time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml build asterisk
 
-echo "[deploy] Starting containers (recreate asterisk to apply mounted pjsip template)..."
-if ! time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml up -d --remove-orphans --force-recreate asterisk; then
-  echo "=== asterisk recreate failed ==="
+echo "[deploy] Starting containers (recreate asterisk + frontend for mounted configs)..."
+if ! time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml up -d --remove-orphans --force-recreate asterisk frontend; then
+  echo "=== asterisk/frontend recreate failed ==="
   exit 1
 fi
 if ! time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml up -d --remove-orphans; then
@@ -136,6 +136,16 @@ done
 
 curl -fsS http://localhost/api/health
 echo ""
+
+echo "[deploy] Verifying Socket.IO through nginx..."
+if curl -fsS "http://localhost/socket.io/?EIO=4&transport=polling" | grep -q '"sid"'; then
+  echo "[deploy] OK: Socket.IO handshake via /socket.io/"
+else
+  echo "[deploy] WARNING: Socket.IO handshake failed — check nginx/nginx.conf mount and backend logs"
+  "${DOCKER[@]}" logs voxera-frontend --tail 30 2>&1 || true
+  "${DOCKER[@]}" logs voxera-backend --tail 30 2>&1 || true
+fi
+
 "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml ps
 
 echo "[deploy] Verifying Asterisk PJSIP config inside container..."
