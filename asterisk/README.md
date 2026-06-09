@@ -14,7 +14,12 @@ docker-entrypoint.sh
 
 `sorcery.conf` and `extconfig.conf` pin PJSIP to static file config (no realtime `ps_*` override from the base image).
 
-`modules.conf` sets `noload => chan_sip.so`. If **chan_sip** stays loaded, it can answer WebSocket REGISTER before **res_pjsip**, causing **401 Unauthorized** even with password `1001` and correct `pjsip.conf`.
+`modules.conf` must include `autoload = yes` (this file **replaces** the base image `modules.conf`) and preload the WebSocket stack:
+
+- `preload => res_http_websocket.so` — registers `/ws` on the HTTP server (without it, `ws://host:8089/ws` returns **404** and the browser shows “WebSocket connection failed”)
+- `preload => res_pjsip_transport_websocket.so` — PJSIP over WebSocket
+
+`noload => chan_sip.so` — if **chan_sip** stays loaded, it can answer WebSocket REGISTER before **res_pjsip**, causing **401 Unauthorized** even with password `1001` and correct `pjsip.conf`.
 
 Mounted volumes: `pjsip.conf.template`, `http.conf.template`, `modules.conf`, `sorcery.conf`, `extconfig.conf`, `extensions.conf`, `rtp.conf`, `logs/`. After `git pull`, `docker compose up -d asterisk` picks up template changes without rebuilding the image.
 

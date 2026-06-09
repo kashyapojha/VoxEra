@@ -70,6 +70,16 @@ services:
       dockerfile: Dockerfile
     container_name: voxera-asterisk
     restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "asterisk -rx 'module show like res_http_websocket' | grep -q res_http_websocket && asterisk -rx 'pjsip show endpoint 1001' | grep -q 'Endpoint:'",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 25s
     ports:
       - "${ASTERISK_WSS_PORT:-8089}:${ASTERISK_WSS_PORT:-8089}"
       - "${ASTERISK_SIP_PORT:-5060}:5060/udp"

@@ -54,4 +54,16 @@ if [ -f "$HTTP_TEMPLATE" ]; then
   fi
 fi
 
+# Belt-and-suspenders: ensure WebSocket stack loads even if modules.conf mount is stale.
+for mod in res_http_websocket res_pjsip_transport_websocket; do
+  if [ -f "/usr/lib/asterisk/modules/${mod}.so" ]; then
+    echo "[asterisk] module present: ${mod}.so"
+  elif [ -f "/usr/lib64/asterisk/modules/${mod}.so" ]; then
+    echo "[asterisk] module present: ${mod}.so"
+  else
+    echo "[asterisk] ERROR: missing ${mod}.so — WebSocket REGISTER will fail (404 on /ws)"
+    exit 1
+  fi
+done
+
 exec /usr/sbin/asterisk -f -vvvg -c

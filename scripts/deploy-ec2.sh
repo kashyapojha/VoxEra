@@ -155,3 +155,24 @@ else
   echo "[deploy] WARNING: pjsip.conf missing aors=1001 or auth=1001-auth"
   "${DOCKER[@]}" exec voxera-asterisk grep -E '^\[1001|^\[1001-auth\]|^aors=|^auth=' /etc/asterisk/pjsip.conf 2>/dev/null || true
 fi
+
+echo "[deploy] Verifying Asterisk WebSocket modules (JsSIP needs /ws on :8089)..."
+sleep 3
+if ! "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "module show like websocket" 2>/dev/null | grep -q res_http_websocket; then
+  echo "[deploy] FAIL: res_http_websocket not loaded — ws://host:8089/ws will return 404"
+  "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "module show like websocket" 2>/dev/null || true
+  "${DOCKER[@]}" logs voxera-asterisk --tail 60 2>&1 || true
+  exit 1
+fi
+
+WS_CODE="$(curl -sS -o /dev/null -w '%{http_code}' \
+  -H 'Connection: Upgrade' \
+  -H 'Upgrade: websocket' \
+  -H 'Sec-WebSocket-Version: 13' \
+  -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
+  "http://127.0.0.1:${ASTERISK_WSS_PORT:-8089}/ws" 2>/dev/null || echo 000)"
+if [ "$WS_CODE" = "404" ]; then
+  echo "[deploy] FAIL: Asterisk /ws returned HTTP 404 — WebSocket SIP cannot connect"
+  exit 1
+fi
+echo "[deploy] OK: WebSocket endpoint /ws is registered (HTTP $WS_CODE)"

@@ -21,6 +21,21 @@ echo "=== chan_sip (must be unloaded — otherwise WebSocket REGISTER hits wrong
 $C asterisk -rx "module show like chan_sip" 2>/dev/null || true
 echo ""
 
+echo "=== WebSocket modules (required for ws://host:8089/ws — 404 means not loaded) ==="
+$C asterisk -rx "module show like websocket" 2>/dev/null || true
+echo ""
+
+WS_HOST="${ASTERISK_EXTERNAL_IP:-127.0.0.1}"
+WS_PORT="${ASTERISK_WSS_PORT:-8089}"
+WS_CODE="$(curl -sS -o /dev/null -w '%{http_code}' \
+  -H 'Connection: Upgrade' \
+  -H 'Upgrade: websocket' \
+  -H 'Sec-WebSocket-Version: 13' \
+  -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
+  "http://${WS_HOST}:${WS_PORT}/ws" 2>/dev/null || echo 000)"
+echo "=== /ws HTTP status from host (${WS_HOST}:${WS_PORT}) => ${WS_CODE} (404 = broken) ==="
+echo ""
+
 echo "=== PJSIP objects ==="
 $C asterisk -rx "pjsip show endpoint 1001" 2>/dev/null || true
 echo ""
@@ -41,6 +56,14 @@ $C grep -q '^\[1001-auth\]$' /etc/asterisk/pjsip.conf 2>/dev/null || ok=0
 chan_loaded="$($C asterisk -rx "module show like chan_sip" 2>/dev/null | awk '/modules loaded/ {print $1}' | head -1)"
 if [ "${chan_loaded:-0}" != "0" ]; then
   echo "FAIL: chan_sip is loaded — WebSocket REGISTER will 401 against wrong module"
+  ok=0
+fi
+if ! $C asterisk -rx "module show like websocket" 2>/dev/null | grep -q res_http_websocket; then
+  echo "FAIL: res_http_websocket not loaded — browser WebSocket to /ws will fail"
+  ok=0
+fi
+if [ "${WS_CODE:-404}" = "404" ]; then
+  echo "FAIL: /ws returned HTTP 404 — load res_http_websocket in modules.conf"
   ok=0
 fi
 

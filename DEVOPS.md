@@ -125,6 +125,8 @@ ssh -i VoxEra.pem ubuntu@<ELASTIC_IP> "docker ps"
 | EC2 pull denied | Ensure repos exist; token has read access; login runs in deploy script |
 | Backend won't start | `docker logs voxera-backend` — check `JWT_SECRET`, `DATABASE_URL` |
 | SIP won't register | Open TCP 8089 + UDP 5060 + UDP 10000–10099; `VITE_SIP_WS_URL` must be `ws://<IP>:8089/ws` matching Asterisk bind port |
+| WebSocket connection failed (browser) | `curl -i http://<IP>:8089/ws` must **not** be HTTP 404. If 404: `res_http_websocket` not loaded — ensure `asterisk/modules.conf` has `preload => res_http_websocket.so` and recreate container |
+| SIP 401 after WebSocket connects | `chan_sip` must be unloaded; endpoint needs `inbound_auth=1001-auth` |
 | SSH auth fails in Actions | Set `EC2_USER` secret (`ubuntu` or `ec2-user`); ensure `EC2_SSH_KEY` is the full private key |
 | SSH auth still fails | Create `EC2_SSH_KEY_B64`: on Windows `certutil -encode VoxEra.pem temp.b64` then copy the encoded block (no headers) into the secret |
 | SCP fails creating `/opt/voxera` | Use `/home/ubuntu/voxera` as deploy path (ubuntu cannot write to `/opt` without sudo) |
