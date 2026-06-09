@@ -81,13 +81,8 @@ services:
       - "${ASTERISK_SIP_PORT:-5060}:5060/udp"
       - "${ASTERISK_RTP_START:-10000}-${ASTERISK_RTP_END:-10099}:${ASTERISK_RTP_START:-10000}-${ASTERISK_RTP_END:-10099}/udp"
     volumes:
-      - ./asterisk/pjsip.conf.template:/etc/asterisk/templates/pjsip.conf.template:ro
-      - ./asterisk/http.conf.template:/etc/asterisk/templates/http.conf.template:ro
-      - ./asterisk/modules.conf:/etc/asterisk/modules.conf:ro
-      - ./asterisk/sorcery.conf:/etc/asterisk/sorcery.conf:ro
-      - ./asterisk/extconfig.conf:/etc/asterisk/extconfig.conf:ro
-      - ./asterisk/extensions.conf:/etc/asterisk/extensions.conf:ro
-      - ./asterisk/rtp.conf:/etc/asterisk/rtp.conf:ro
+      # Config is baked into the asterisk image at build time (deploy rebuilds asterisk).
+      # Do not mount host asterisk/*.conf — CRLF/stale files caused PJSIP to load zero objects.
       - asterisk-logs:/var/log/asterisk
     environment:
       ASTERISK_EXTERNAL_IP: ${ASTERISK_EXTERNAL_IP}

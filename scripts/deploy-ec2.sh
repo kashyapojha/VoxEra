@@ -96,12 +96,11 @@ fi
 echo "[deploy] Pulling app images..."
 time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml pull backend frontend postgres
 
-# Asterisk pjsip.conf is generated from a template baked into the image at build time.
-# `up -d` alone reuses a cached image — config fixes in git never reach the running container.
-echo "[deploy] Rebuilding Asterisk image..."
-time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml build asterisk
+# Asterisk config is baked into the image (no host volume mounts). Rebuild every deploy.
+echo "[deploy] Rebuilding Asterisk image (no cache)..."
+time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml build --no-cache asterisk
 
-echo "[deploy] Starting containers (recreate asterisk + frontend for mounted configs)..."
+echo "[deploy] Starting containers (recreate asterisk + frontend)..."
 if ! time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml up -d --remove-orphans --force-recreate asterisk frontend; then
   echo "=== asterisk/frontend recreate failed ==="
   exit 1
@@ -160,14 +159,12 @@ for i in $(seq 1 60); do
   if [ "$i" -eq 60 ]; then
     AST_HEALTH="$("${DOCKER[@]}" inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' voxera-asterisk 2>/dev/null || echo "missing")"
     echo "=== Asterisk PJSIP not ready (docker health: ${AST_HEALTH}) ==="
+    "${DOCKER[@]}" logs voxera-asterisk --tail 150 2>&1 || true
     printf '%s\n' "$AOR_OUT"
     printf '%s\n' "$EP_OUT"
     "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show aors" 2>&1 || true
     "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show endpoints" 2>&1 || true
-    if "${DOCKER[@]}" exec voxera-asterisk grep -q $'\r' /etc/asterisk/pjsip.conf 2>/dev/null; then
-      echo "[deploy] FAIL: pjsip.conf has Windows CRLF line endings — rebuild asterisk image after git pull"
-    fi
-    "${DOCKER[@]}" logs voxera-asterisk --tail 120 2>&1 || true
+    "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "module show like res_pjsip" 2>&1 || true
     exit 1
   fi
   sleep 2
