@@ -40,7 +40,8 @@ services:
     volumes:
       - ./asterisk/logs:/var/log/asterisk
     environment:
-      ASTERISK_EXTERNAL_IP: ${ASTERISK_EXTERNAL_IP:-127.0.0.1}
+      PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
+      ASTERISK_EXTERNAL_IP: ${ASTERISK_EXTERNAL_IP:-${PUBLIC_HOST:-127.0.0.1}}
       ASTERISK_WS_PORT: ${ASTERISK_WSS_PORT:-8089}
       ASTERISK_UID: ${ASTERISK_UID:-1000}
       ASTERISK_GID: ${ASTERISK_GID:-1000}

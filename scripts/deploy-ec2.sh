@@ -21,7 +21,7 @@ DATABASE_URL="${DATABASE_URL:-postgres://${POSTGRES_USER}:${ENCODED_PASSWORD}@po
 mkdir -p "$APP_DIR"
 cd "$APP_DIR"
 
-echo "Using GitHub secrets: JWT_SECRET=${JWT_SECRET:+set} POSTGRES_PASSWORD=${POSTGRES_PASSWORD:+set}"
+echo "Using GitHub secrets: JWT_SECRET=${JWT_SECRET:+set} POSTGRES_PASSWORD=${POSTGRES_PASSWORD:+set} PUBLIC_HOST=${PUBLIC_HOST:+set} ASTERISK_EXTERNAL_IP=${ASTERISK_EXTERNAL_IP:+set}"
 
 # Write .env safely (handles special characters in secrets)
 APP_DIR="$APP_DIR" \
@@ -171,19 +171,6 @@ for i in $(seq 1 60); do
 done
 
 echo "[deploy] Verifying Asterisk PJSIP runtime..."
-REALM_LINE="$("${DOCKER[@]}" exec voxera-asterisk sh -c "tr -d '\\r' < /etc/asterisk/pjsip.conf | grep '^default_realm=' | head -1" 2>/dev/null || true)"
-printf '%s\n' "$REALM_LINE"
-if [ -z "$REALM_LINE" ] || [ "$REALM_LINE" = "default_realm=127.0.0.1" ]; then
-  echo "[deploy] FAIL: default_realm must be your public IP (set ASTERISK_EXTERNAL_IP / PUBLIC_HOST secrets)"
-  exit 1
-fi
-if ! printf '%s' "$REALM_LINE" | grep -q "default_realm=${PUBLIC_HOST}"; then
-  echo "[deploy] WARNING: default_realm does not match PUBLIC_HOST (${PUBLIC_HOST})"
-fi
-if "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "module show like chan_sip" 2>&1 | grep -q '1 modules loaded'; then
-  echo "[deploy] FAIL: chan_sip is loaded — WebSocket REGISTER will 401"
-  exit 1
-fi
 EP_OUT="$("${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show endpoint 1001" 2>&1 || true)"
 if printf '%s' "$EP_OUT" | grep -q 'Unable to find'; then
   echo "[deploy] FAIL: pjsip endpoint 1001 not loaded"
@@ -195,7 +182,31 @@ if ! printf '%s' "$EP_OUT" | grep -q 'aors.*1001'; then
   printf '%s\n' "$EP_OUT"
   exit 1
 fi
-echo "[deploy] OK: pjsip endpoint 1001 + AOR 1001 loaded, chan_sip unloaded"
+
+# Realm: prefer live Asterisk state (authoritative), then config file.
+SIP_REALM="$(printf '%s' "$EP_OUT" | tr -d '\r' | sed -n 's/.*from_domain[[:space:]]*:[[:space:]]*\([^[:space:]]*\).*/\1/p' | head -1)"
+if [ -z "$SIP_REALM" ]; then
+  GLOBAL_OUT="$("${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show global" 2>&1 || true)"
+  SIP_REALM="$(printf '%s' "$GLOBAL_OUT" | tr -d '\r' | sed -n 's/.*default_realm[[:space:]]*:[[:space:]]*\([^[:space:]]*\).*/\1/p' | head -1)"
+fi
+if [ -z "$SIP_REALM" ]; then
+  SIP_REALM="$("${DOCKER[@]}" exec voxera-asterisk cat /etc/asterisk/pjsip.conf 2>/dev/null | tr -d '\r' | sed -n 's/^default_realm=//p' | head -1 || true)"
+fi
+echo "[deploy] SIP realm/from_domain: ${SIP_REALM}"
+if [ -z "$SIP_REALM" ] || [ "$SIP_REALM" = "127.0.0.1" ]; then
+  echo "[deploy] FAIL: SIP realm must be your public IP — check PUBLIC_HOST / ASTERISK_EXTERNAL_IP secrets"
+  "${DOCKER[@]}" exec voxera-asterisk env 2>/dev/null | grep -E '^(PUBLIC_HOST|ASTERISK_EXTERNAL_IP)=' || true
+  exit 1
+fi
+if [ "$SIP_REALM" != "$PUBLIC_HOST" ] && [ -n "$ASTERISK_EXTERNAL_IP" ] && [ "$SIP_REALM" != "$ASTERISK_EXTERNAL_IP" ]; then
+  echo "[deploy] WARNING: SIP realm (${SIP_REALM}) differs from PUBLIC_HOST (${PUBLIC_HOST})"
+fi
+
+if "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "module show like chan_sip" 2>&1 | grep -q '1 modules loaded'; then
+  echo "[deploy] FAIL: chan_sip is loaded — WebSocket REGISTER will 401"
+  exit 1
+fi
+echo "[deploy] OK: pjsip endpoint 1001 + AOR 1001 loaded, chan_sip unloaded, realm=${SIP_REALM}"
 
 echo "[deploy] Verifying Asterisk WebSocket modules (JsSIP needs /ws on :8089)..."
 sleep 3

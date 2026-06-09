@@ -1,12 +1,14 @@
 #!/bin/sh
 set -e
 
-ASTERISK_EXTERNAL_IP="${ASTERISK_EXTERNAL_IP:-127.0.0.1}"
 ASTERISK_WS_PORT="${ASTERISK_WS_PORT:-8089}"
+# PUBLIC_HOST is set by docker-compose from deploy .env; digest realm must match the EC2 IP.
+ASTERISK_EXTERNAL_IP="${ASTERISK_EXTERNAL_IP:-${PUBLIC_HOST:-127.0.0.1}}"
 if [ -z "$ASTERISK_EXTERNAL_IP" ]; then
   ASTERISK_EXTERNAL_IP="127.0.0.1"
 fi
 export ASTERISK_EXTERNAL_IP ASTERISK_WS_PORT
+echo "[asterisk] ASTERISK_EXTERNAL_IP=${ASTERISK_EXTERNAL_IP}"
 
 strip_crlf() {
   tr -d '\r'

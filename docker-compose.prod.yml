@@ -85,7 +85,8 @@ services:
       # Do not mount host asterisk/*.conf — CRLF/stale files caused PJSIP to load zero objects.
       - asterisk-logs:/var/log/asterisk
     environment:
-      ASTERISK_EXTERNAL_IP: ${ASTERISK_EXTERNAL_IP}
+      PUBLIC_HOST: ${PUBLIC_HOST}
+      ASTERISK_EXTERNAL_IP: ${ASTERISK_EXTERNAL_IP:-${PUBLIC_HOST}}
       ASTERISK_WS_PORT: ${ASTERISK_WSS_PORT:-8089}
       ASTERISK_UID: ${ASTERISK_UID:-1000}
       ASTERISK_GID: ${ASTERISK_GID:-1000}
