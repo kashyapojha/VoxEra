@@ -97,7 +97,7 @@ fi
 docker_exec_asterisk() {
   local attempt out
   for attempt in 1 2 3 4 5; do
-    out="$("${DOCKER[@]}" exec voxera-asterisk "$@" 2>&1)" || out="${out:-}"
+    out="$(timeout 5 "${DOCKER[@]}" exec voxera-asterisk "$@" 2>&1)" || out="${out:-}"
     if ! printf '%s' "$out" | grep -qiE 'unable to upgrade to tcp|received 409|container.*is restarting|is not running'; then
       printf '%s' "$out"
       return 0
