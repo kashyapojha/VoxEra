@@ -264,7 +264,7 @@ export const SIPProvider = ({ children }) => {
         setIsRegistering(false)
         let msg = `Registration failed: ${detail}`
         if (String(detail).startsWith('404')) {
-          msg += ' — AOR/endpoint mismatch (server needs aors=1001; client registrar must be sip:1001@host).'
+          msg += ' — AOR/endpoint mismatch (server needs aors=1001; client SIP URI must be sip:1001@host).'
         } else if (String(detail).startsWith('403')) {
           msg += ' — Forbidden (wrong password or endpoint not allowed to register).'
         } else if (String(detail).startsWith('401')) {

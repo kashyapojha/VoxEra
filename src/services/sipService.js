@@ -50,10 +50,10 @@ export function createUA(callbacks, overrides = {}) {
     throw new Error(`Invalid SIP URI — expected sip:1001@host, got "${uri}"`)
   }
 
-  // AoR URI (From/To) and registrar must include the extension — Asterisk matches AOR
-  // from the To header user; registrar without user causes 404 Not Found on REGISTER.
+  // AoR URI (From/To) includes the extension — Asterisk matches AOR from the To header user.
+  // registrar_server must be domain-only (no user); JsSIP derives it from uri if omitted.
   const normalizedUri = `sip:${authorizationUser}@${effectiveDomain}`
-  const registrarServer = `sip:${authorizationUser}@${effectiveDomain}`
+  const registrarServer = `sip:${effectiveDomain}`
 
   const configuration = {
     sockets:            [socket],
