@@ -1,8 +1,8 @@
 FROM andrius/asterisk:22
 
 # envsubst for pjsip.conf / http.conf templates at container start
-RUN apk add --no-cache gettext 2>/dev/null || \
-    (apt-get update && apt-get install -y --no-install-recommends gettext-base && rm -rf /var/lib/apt/lists/*) || true
+RUN apk add --no-cache gettext wget curl procps 2>/dev/null || \
+    (apt-get update && apt-get install -y --no-install-recommends gettext-base wget curl procps && rm -rf /var/lib/apt/lists/*) || true
 
 COPY pjsip.conf.template /etc/asterisk/templates/pjsip.conf.template
 COPY http.conf.template /etc/asterisk/templates/http.conf.template

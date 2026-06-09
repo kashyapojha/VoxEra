@@ -2,7 +2,7 @@
 
 [global]
 type=global
-endpoint_identifier_order=username,auth_username
+endpoint_identifier_order=auth_username,username
 default_realm=${ASTERISK_EXTERNAL_IP}
 
 [transport-wss]
@@ -17,6 +17,7 @@ type=auth
 auth_type=userpass
 username=1001
 password=1001
+realm=${ASTERISK_EXTERNAL_IP}
 
 [1001]
 type=aor
@@ -31,6 +32,41 @@ aors=1001
 auth=1001-auth
 inbound_auth=1001-auth
 from_user=1001
+from_domain=${ASTERISK_EXTERNAL_IP}
+disallow=all
+allow=opus,ulaw,alaw
+webrtc=yes
+dtls_auto_generate_cert=yes
+dtls_verify=fingerprint
+dtls_setup=actpass
+ice_support=yes
+media_use_received_transport=yes
+rtcp_mux=yes
+force_rport=yes
+rewrite_contact=yes
+rtp_symmetric=yes
+direct_media=no
+
+[1002-auth]
+type=auth
+auth_type=userpass
+username=1002
+password=1002
+realm=${ASTERISK_EXTERNAL_IP}
+
+[1002]
+type=aor
+max_contacts=5
+remove_existing=yes
+
+[1002]
+type=endpoint
+transport=transport-wss
+context=internal
+aors=1002
+auth=1002-auth
+inbound_auth=1002-auth
+from_user=1002
 from_domain=${ASTERISK_EXTERNAL_IP}
 disallow=all
 allow=opus,ulaw,alaw
