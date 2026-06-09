@@ -51,6 +51,11 @@ echo ""
 ok=1
 $C grep -q '^aors=1001$' /etc/asterisk/pjsip.conf 2>/dev/null || ok=0
 $C grep -q '^auth=1001-auth$' /etc/asterisk/pjsip.conf 2>/dev/null || ok=0
+$C grep -q '^inbound_auth=1001-auth$' /etc/asterisk/pjsip.conf 2>/dev/null || ok=0
+if $C asterisk -rx "pjsip show aor 1001" 2>&1 | grep -q 'Unable to find'; then
+  echo "FAIL: AOR 1001 not loaded in Asterisk — REGISTER returns 404"
+  ok=0
+fi
 $C grep -q '^\[1001-auth\]$' /etc/asterisk/pjsip.conf 2>/dev/null || ok=0
 chan_loaded="$($C asterisk -rx "module show like chan_sip" 2>/dev/null | awk '/modules loaded/ {print $1}' | head -1)"
 if [ "${chan_loaded:-0}" != "0" ]; then

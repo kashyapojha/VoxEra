@@ -2,7 +2,7 @@
 
 [global]
 type=global
-endpoint_identifier_order=auth_username,username
+endpoint_identifier_order=username,auth_username
 default_realm=${ASTERISK_EXTERNAL_IP}
 
 [transport-wss]
@@ -32,7 +32,7 @@ transport=transport-wss
 context=internal
 aors=1001
 auth=1001-auth
-identify_by=username,auth_username
+inbound_auth=1001-auth
 from_user=1001
 from_domain=${ASTERISK_EXTERNAL_IP}
 
@@ -75,7 +75,7 @@ transport=transport-wss
 context=internal
 aors=1002
 auth=1002-auth
-identify_by=username,auth_username
+inbound_auth=1002-auth
 from_user=1002
 from_domain=${ASTERISK_EXTERNAL_IP}
 

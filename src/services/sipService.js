@@ -50,10 +50,10 @@ export function createUA(callbacks, overrides = {}) {
     throw new Error(`Invalid SIP URI — expected sip:1001@host, got "${uri}"`)
   }
 
-  // WebSocket transport is selected by the socket — do not add ;transport=ws to the AOR URI
-  // or digest auth may not match Asterisk's REGISTER Request-URI.
+  // AoR URI (From/To) and registrar must include the extension — Asterisk matches AOR
+  // from the To header user; registrar without user causes 404 Not Found on REGISTER.
   const normalizedUri = `sip:${authorizationUser}@${effectiveDomain}`
-  const registrarServer = `sip:${effectiveDomain}`
+  const registrarServer = `sip:${authorizationUser}@${effectiveDomain}`
 
   const configuration = {
     sockets:            [socket],

@@ -38,8 +38,12 @@ if [ -f "$PJSIP_TEMPLATE" ]; then
     echo "[asterisk] ERROR: endpoint missing auth=1001-auth — REGISTER digest will fail with 401"
     exit 1
   fi
-  if grep -q '^realm=' "$PJSIP_OUTPUT"; then
-    echo "[asterisk] WARNING: per-auth realm= overrides default_realm — can cause 401 if mismatched"
+  if ! grep -q '^inbound_auth=1001-auth$' "$PJSIP_OUTPUT"; then
+    echo "[asterisk] ERROR: endpoint missing inbound_auth=1001-auth — REGISTER will fail with 401"
+    exit 1
+  fi
+  if grep -q '^identify_by=' "$PJSIP_OUTPUT"; then
+    echo "[asterisk] WARNING: identify_by on endpoint can break REGISTER AOR matching (404)"
   fi
   if grep -q "bind=0.0.0.0:${ASTERISK_WS_PORT}" "$PJSIP_OUTPUT"; then
     echo "[asterisk] pjsip.conf: WebSocket transport on port ${ASTERISK_WS_PORT}"

@@ -171,7 +171,17 @@ if "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "module show like chan_sip" 
   echo "[deploy] FAIL: chan_sip is loaded — WebSocket REGISTER will 401"
   exit 1
 fi
-echo "[deploy] OK: pjsip auth chain present, chan_sip unloaded"
+if ! "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show aor 1001" 2>&1 | grep -q 'Aor:.*1001'; then
+  echo "[deploy] FAIL: pjsip AOR 1001 not loaded — REGISTER will return 404"
+  "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show aor 1001" 2>&1 || true
+  exit 1
+fi
+if ! "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show endpoint 1001" 2>&1 | grep -q 'aors.*1001'; then
+  echo "[deploy] FAIL: endpoint 1001 missing aors=1001 — REGISTER will return 404"
+  "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show endpoint 1001" 2>&1 || true
+  exit 1
+fi
+echo "[deploy] OK: pjsip endpoint 1001 + AOR 1001 loaded, chan_sip unloaded"
 
 echo "[deploy] Verifying Asterisk WebSocket modules (JsSIP needs /ws on :8089)..."
 sleep 3
