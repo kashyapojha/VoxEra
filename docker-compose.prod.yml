@@ -74,7 +74,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "asterisk -rx 'module show like res_http_websocket' | grep -q res_http_websocket && asterisk -rx 'pjsip show endpoint 1001' | grep -q 'Endpoint:'",
+          "asterisk -rx 'module show like res_http_websocket' | grep -q res_http_websocket && asterisk -rx 'pjsip show endpoint 1001' | grep -q 'Endpoint:' && asterisk -rx 'pjsip show aor 1001' | grep -q 'Aor:'",
         ]
       interval: 30s
       timeout: 10s

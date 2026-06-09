@@ -148,6 +148,21 @@ fi
 
 "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml ps
 
+echo "Waiting for Asterisk health..."
+for i in $(seq 1 45); do
+  AST_HEALTH="$("${DOCKER[@]}" inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' voxera-asterisk 2>/dev/null || echo "missing")"
+  if [ "$AST_HEALTH" = "healthy" ]; then
+    echo "Asterisk healthy"
+    break
+  fi
+  if [ "$i" -eq 45 ]; then
+    echo "=== Asterisk health check timed out (status: ${AST_HEALTH}) ==="
+    "${DOCKER[@]}" logs voxera-asterisk --tail 80 2>&1 || true
+    exit 1
+  fi
+  sleep 2
+done
+
 echo "[deploy] Verifying Asterisk PJSIP config inside container..."
 PJSIP_SNIP="$("${DOCKER[@]}" exec voxera-asterisk grep -E '^(default_realm=|aors=1001$|auth=1001-auth$|password=)' /etc/asterisk/pjsip.conf 2>/dev/null || true)"
 printf '%s\n' "$PJSIP_SNIP"
