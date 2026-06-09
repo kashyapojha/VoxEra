@@ -98,7 +98,7 @@ docker_exec_asterisk() {
   local attempt out
   for attempt in 1 2 3 4 5; do
     out="$("${DOCKER[@]}" exec voxera-asterisk "$@" 2>&1)" || out="${out:-}"
-    if ! printf '%s' "$out" | grep -qiE 'unable to upgrade to tcp|received 409|container.*is restarting'; then
+    if ! printf '%s' "$out" | grep -qiE 'unable to upgrade to tcp|received 409|container.*is restarting|is not running'; then
       printf '%s' "$out"
       return 0
     fi
@@ -106,6 +106,15 @@ docker_exec_asterisk() {
   done
   printf '%s' "$out"
   return 1
+}
+
+# True when CLI output looks like a loaded PJSIP object (not empty / not a docker error).
+pjsip_cli_ok() {
+  local out="$1"
+  [ -n "$out" ] \
+    && ! printf '%s' "$out" | grep -qi 'Unable to find' \
+    && ! printf '%s' "$out" | grep -qiE 'unable to upgrade to tcp|received 409|Error response|is not running' \
+    && printf '%s' "$out" | grep -q '1001'
 }
 
 echo "[deploy] Pulling app images..."
@@ -162,20 +171,23 @@ fi
 
 "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml ps
 
-echo "Waiting for Asterisk PJSIP (endpoint + AOR 1001)..."
+echo "Waiting for Asterisk (container healthy, then PJSIP 1001)..."
 AOR_OUT=""
 EP_OUT=""
-for i in $(seq 1 60); do
-  AOR_OUT="$(docker_exec_asterisk asterisk -rx "pjsip show aor 1001" || true)"
-  EP_OUT="$(docker_exec_asterisk asterisk -rx "pjsip show endpoint 1001" || true)"
-  if printf '%s' "$AOR_OUT" | grep -qv 'Unable to find' \
-    && printf '%s' "$EP_OUT" | grep -qv 'Unable to find' \
-    && printf '%s' "$EP_OUT" | grep -qiE 'Aor:.*1001|aors.*1001'; then
-    echo "Asterisk PJSIP ready"
-    break
+AST_HEALTH="starting"
+for i in $(seq 1 90); do
+  AST_HEALTH="$("${DOCKER[@]}" inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' voxera-asterisk 2>/dev/null || echo "missing")"
+
+  if [ "$AST_HEALTH" = "healthy" ] || [ "$i" -ge 20 ]; then
+    AOR_OUT="$(docker_exec_asterisk asterisk -rx "pjsip show aor 1001" || true)"
+    EP_OUT="$(docker_exec_asterisk asterisk -rx "pjsip show endpoint 1001" || true)"
+    if pjsip_cli_ok "$AOR_OUT" && pjsip_cli_ok "$EP_OUT"; then
+      echo "Asterisk PJSIP ready (health=${AST_HEALTH})"
+      break
+    fi
   fi
-  if [ "$i" -eq 60 ]; then
-    AST_HEALTH="$("${DOCKER[@]}" inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' voxera-asterisk 2>/dev/null || echo "missing")"
+
+  if [ "$i" -eq 90 ]; then
     echo "=== Asterisk PJSIP not ready (docker health: ${AST_HEALTH}) ==="
     "${DOCKER[@]}" logs voxera-asterisk --tail 150 2>&1 || true
     printf '%s\n' "$AOR_OUT"
@@ -185,13 +197,17 @@ for i in $(seq 1 60); do
     docker_exec_asterisk asterisk -rx "module show like res_pjsip" || true
     exit 1
   fi
+
+  if [ $((i % 15)) -eq 0 ]; then
+    echo "  ... still waiting (${i}/90, health=${AST_HEALTH})"
+  fi
   sleep 2
 done
 
 echo "[deploy] Verifying Asterisk PJSIP runtime..."
-# Reuse wait-loop output (avoids duplicate exec + docker 409 during container churn).
-if printf '%s' "$EP_OUT" | grep -q 'Unable to find'; then
-  echo "[deploy] FAIL: pjsip endpoint 1001 not loaded"
+if ! pjsip_cli_ok "$AOR_OUT" || ! pjsip_cli_ok "$EP_OUT"; then
+  echo "[deploy] FAIL: pjsip endpoint/AOR 1001 not loaded"
+  printf '%s\n' "$AOR_OUT"
   printf '%s\n' "$EP_OUT"
   exit 1
 fi
