@@ -158,12 +158,14 @@ fi
 
 echo "[deploy] Verifying Asterisk WebSocket modules (JsSIP needs /ws on :8089)..."
 sleep 3
-if ! "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "module show like websocket" 2>/dev/null | grep -q res_http_websocket; then
+WS_MODULES="$("${DOCKER[@]}" exec voxera-asterisk asterisk -rx "module show like websocket" 2>&1 || true)"
+if ! printf '%s\n' "$WS_MODULES" | grep -q 'res_http_websocket.so'; then
   echo "[deploy] FAIL: res_http_websocket not loaded — ws://host:8089/ws will return 404"
-  "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "module show like websocket" 2>/dev/null || true
+  printf '%s\n' "$WS_MODULES"
   "${DOCKER[@]}" logs voxera-asterisk --tail 60 2>&1 || true
   exit 1
 fi
+echo "[deploy] OK: res_http_websocket loaded"
 
 WS_CODE="$(curl -sS -o /dev/null -w '%{http_code}' \
   -H 'Connection: Upgrade' \

@@ -22,7 +22,7 @@ $C asterisk -rx "module show like chan_sip" 2>/dev/null || true
 echo ""
 
 echo "=== WebSocket modules (required for ws://host:8089/ws — 404 means not loaded) ==="
-$C asterisk -rx "module show like websocket" 2>/dev/null || true
+$C asterisk -rx "module show like websocket" 2>&1 || true
 echo ""
 
 WS_HOST="${ASTERISK_EXTERNAL_IP:-127.0.0.1}"
@@ -58,7 +58,7 @@ if [ "${chan_loaded:-0}" != "0" ]; then
   echo "FAIL: chan_sip is loaded — WebSocket REGISTER will 401 against wrong module"
   ok=0
 fi
-if ! $C asterisk -rx "module show like websocket" 2>/dev/null | grep -q res_http_websocket; then
+if ! $C asterisk -rx "module show like websocket" 2>&1 | grep -q 'res_http_websocket.so'; then
   echo "FAIL: res_http_websocket not loaded — browser WebSocket to /ws will fail"
   ok=0
 fi
