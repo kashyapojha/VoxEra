@@ -56,7 +56,7 @@ if [ -f "$HTTP_TEMPLATE" ]; then
   envsubst '${ASTERISK_WS_PORT}' < "$HTTP_TEMPLATE" | strip_crlf > "$HTTP_OUTPUT"
 fi
 
-for mod in res_http_websocket res_pjsip_transport_websocket res_pjsip res_sorcery_config; do
+for mod in res_http_websocket res_pjsip_transport_websocket; do
   if [ -f "/usr/lib/asterisk/modules/${mod}.so" ] || [ -f "/usr/lib64/asterisk/modules/${mod}.so" ]; then
     echo "[asterisk] module present: ${mod}.so"
   else

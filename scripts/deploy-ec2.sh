@@ -171,24 +171,22 @@ fi
 
 "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml ps
 
-echo "Waiting for Asterisk (container healthy, then PJSIP 1001)..."
+echo "Waiting for Asterisk PJSIP 1001..."
 AOR_OUT=""
 EP_OUT=""
 AST_HEALTH="starting"
 for i in $(seq 1 90); do
   AST_HEALTH="$("${DOCKER[@]}" inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' voxera-asterisk 2>/dev/null || echo "missing")"
-
-  if [ "$AST_HEALTH" = "healthy" ] || [ "$i" -ge 20 ]; then
-    AOR_OUT="$(docker_exec_asterisk asterisk -rx "pjsip show aor 1001" || true)"
-    EP_OUT="$(docker_exec_asterisk asterisk -rx "pjsip show endpoint 1001" || true)"
-    if pjsip_cli_ok "$AOR_OUT" && pjsip_cli_ok "$EP_OUT"; then
-      echo "Asterisk PJSIP ready (health=${AST_HEALTH})"
-      break
-    fi
+  AOR_OUT="$(docker_exec_asterisk asterisk -rx "pjsip show aor 1001" || true)"
+  EP_OUT="$(docker_exec_asterisk asterisk -rx "pjsip show endpoint 1001" || true)"
+  if pjsip_cli_ok "$AOR_OUT" && pjsip_cli_ok "$EP_OUT"; then
+    echo "Asterisk PJSIP ready (docker health=${AST_HEALTH})"
+    break
   fi
 
   if [ "$i" -eq 90 ]; then
     echo "=== Asterisk PJSIP not ready (docker health: ${AST_HEALTH}) ==="
+    "${DOCKER[@]}" inspect voxera-asterisk --format='{{range .State.Health.Log}}{{.Output}}{{end}}' 2>/dev/null | tail -5 || true
     "${DOCKER[@]}" logs voxera-asterisk --tail 150 2>&1 || true
     printf '%s\n' "$AOR_OUT"
     printf '%s\n' "$EP_OUT"
