@@ -2,7 +2,7 @@
 
 [global]
 type=global
-endpoint_identifier_order=username,auth_username,ip
+endpoint_identifier_order=auth_username,username
 default_realm=13.62.237.148
 
 [transport-wss]
@@ -17,7 +17,6 @@ type=auth
 auth_type=userpass
 username=1001
 password=1001
-realm=13.62.237.148
 
 [1001]
 type=aor
@@ -31,7 +30,6 @@ transport=transport-wss
 context=internal
 aors=1001
 auth=1001-auth
-inbound_auth=1001-auth
 from_user=1001
 from_domain=13.62.237.148
 disallow=all
@@ -54,7 +52,6 @@ type=auth
 auth_type=userpass
 username=1002
 password=1002
-realm=13.62.237.148
 
 [1002]
 type=aor
@@ -68,7 +65,6 @@ transport=transport-wss
 context=internal
 aors=1002
 auth=1002-auth
-inbound_auth=1002-auth
 from_user=1002
 from_domain=13.62.237.148
 disallow=all

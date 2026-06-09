@@ -1,4 +1,4 @@
-FROM andrius/asterisk:latest
+FROM andrius/asterisk:22
 
 # envsubst for pjsip.conf / http.conf templates at container start
 RUN apk add --no-cache gettext 2>/dev/null || \

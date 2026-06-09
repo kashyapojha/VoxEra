@@ -61,6 +61,7 @@ export function createUA(callbacks, overrides = {}) {
     display_name:       authorizationUser,
     authorization_user: authorizationUser,
     password,
+    realm:              effectiveDomain,
     registrar_server:   registrarServer,
     register:           true,
     session_timers:     false,
@@ -69,13 +70,14 @@ export function createUA(callbacks, overrides = {}) {
     connection_recovery_max_interval: 30,
   }
 
-  console.log('=== SIP DEBUG ===')
-  console.log('URI:', configuration.uri)
-  console.log('AUTH USER:', configuration.authorization_user)
-  console.log('PASSWORD:', JSON.stringify(configuration.password))
-  console.log('PASSWORD LENGTH:', configuration.password?.length)
-  console.log('REGISTRAR:', configuration.registrar_server)
-  console.log('WEBSOCKET:', websocketUrl)
+  console.log('[SIP] register', {
+    uri: configuration.uri,
+    authUser: configuration.authorization_user,
+    realm: configuration.realm,
+    registrar: configuration.registrar_server,
+    websocket: websocketUrl,
+    passwordLength: configuration.password?.length,
+  })
 
   const extension = authorizationUser
   const ua = new JsSIP.UA(configuration)

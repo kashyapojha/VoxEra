@@ -149,12 +149,29 @@ fi
 "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml ps
 
 echo "[deploy] Verifying Asterisk PJSIP config inside container..."
-if "${DOCKER[@]}" exec voxera-asterisk grep -q '^aors=1001$' /etc/asterisk/pjsip.conf 2>/dev/null; then
-  echo "[deploy] OK: pjsip.conf has aors=1001"
-else
-  echo "[deploy] WARNING: pjsip.conf missing aors=1001 or auth=1001-auth"
-  "${DOCKER[@]}" exec voxera-asterisk grep -E '^\[1001|^\[1001-auth\]|^aors=|^auth=' /etc/asterisk/pjsip.conf 2>/dev/null || true
+PJSIP_SNIP="$("${DOCKER[@]}" exec voxera-asterisk grep -E '^(default_realm=|aors=1001$|auth=1001-auth$|password=)' /etc/asterisk/pjsip.conf 2>/dev/null || true)"
+printf '%s\n' "$PJSIP_SNIP"
+if ! printf '%s\n' "$PJSIP_SNIP" | grep -q '^aors=1001$'; then
+  echo "[deploy] FAIL: pjsip.conf missing aors=1001"
+  exit 1
 fi
+if ! printf '%s\n' "$PJSIP_SNIP" | grep -q '^auth=1001-auth$'; then
+  echo "[deploy] FAIL: pjsip.conf missing auth=1001-auth"
+  exit 1
+fi
+REALM_LINE="$(printf '%s\n' "$PJSIP_SNIP" | grep '^default_realm=' | head -1 || true)"
+if [ -z "$REALM_LINE" ] || [ "$REALM_LINE" = "default_realm=127.0.0.1" ]; then
+  echo "[deploy] FAIL: default_realm must be your public IP (set ASTERISK_EXTERNAL_IP / PUBLIC_HOST secrets)"
+  exit 1
+fi
+if ! printf '%s\n' "$REALM_LINE" | grep -q "default_realm=${PUBLIC_HOST}"; then
+  echo "[deploy] WARNING: default_realm does not match PUBLIC_HOST (${PUBLIC_HOST})"
+fi
+if "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "module show like chan_sip" 2>&1 | grep -q '1 modules loaded'; then
+  echo "[deploy] FAIL: chan_sip is loaded — WebSocket REGISTER will 401"
+  exit 1
+fi
+echo "[deploy] OK: pjsip auth chain present, chan_sip unloaded"
 
 echo "[deploy] Verifying Asterisk WebSocket modules (JsSIP needs /ws on :8089)..."
 sleep 3
