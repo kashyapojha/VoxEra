@@ -93,6 +93,21 @@ else
   exit 1
 fi
 
+# Retry docker exec — Asterisk restart/healthcheck can briefly return HTTP 409.
+docker_exec_asterisk() {
+  local attempt out
+  for attempt in 1 2 3 4 5; do
+    out="$("${DOCKER[@]}" exec voxera-asterisk "$@" 2>&1)" || out="${out:-}"
+    if ! printf '%s' "$out" | grep -qiE 'unable to upgrade to tcp|received 409|container.*is restarting'; then
+      printf '%s' "$out"
+      return 0
+    fi
+    sleep 2
+  done
+  printf '%s' "$out"
+  return 1
+}
+
 echo "[deploy] Pulling app images..."
 time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml pull backend frontend postgres
 
@@ -148,11 +163,14 @@ fi
 "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml ps
 
 echo "Waiting for Asterisk PJSIP (endpoint + AOR 1001)..."
+AOR_OUT=""
+EP_OUT=""
 for i in $(seq 1 60); do
-  AOR_OUT="$("${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show aor 1001" 2>&1 || true)"
-  EP_OUT="$("${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show endpoint 1001" 2>&1 || true)"
+  AOR_OUT="$(docker_exec_asterisk asterisk -rx "pjsip show aor 1001" || true)"
+  EP_OUT="$(docker_exec_asterisk asterisk -rx "pjsip show endpoint 1001" || true)"
   if printf '%s' "$AOR_OUT" | grep -qv 'Unable to find' \
-    && printf '%s' "$EP_OUT" | grep -qv 'Unable to find'; then
+    && printf '%s' "$EP_OUT" | grep -qv 'Unable to find' \
+    && printf '%s' "$EP_OUT" | grep -qiE 'Aor:.*1001|aors.*1001'; then
     echo "Asterisk PJSIP ready"
     break
   fi
@@ -162,31 +180,26 @@ for i in $(seq 1 60); do
     "${DOCKER[@]}" logs voxera-asterisk --tail 150 2>&1 || true
     printf '%s\n' "$AOR_OUT"
     printf '%s\n' "$EP_OUT"
-    "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show aors" 2>&1 || true
-    "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show endpoints" 2>&1 || true
-    "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "module show like res_pjsip" 2>&1 || true
+    docker_exec_asterisk asterisk -rx "pjsip show aors" || true
+    docker_exec_asterisk asterisk -rx "pjsip show endpoints" || true
+    docker_exec_asterisk asterisk -rx "module show like res_pjsip" || true
     exit 1
   fi
   sleep 2
 done
 
 echo "[deploy] Verifying Asterisk PJSIP runtime..."
-EP_OUT="$("${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show endpoint 1001" 2>&1 || true)"
+# Reuse wait-loop output (avoids duplicate exec + docker 409 during container churn).
 if printf '%s' "$EP_OUT" | grep -q 'Unable to find'; then
   echo "[deploy] FAIL: pjsip endpoint 1001 not loaded"
   printf '%s\n' "$EP_OUT"
   exit 1
 fi
-if ! printf '%s' "$EP_OUT" | grep -q 'aors.*1001'; then
-  echo "[deploy] FAIL: endpoint 1001 missing aors=1001 — REGISTER will return 404"
-  printf '%s\n' "$EP_OUT"
-  exit 1
-fi
 
-# Realm: prefer live Asterisk state (authoritative), then config file.
+# Realm: prefer live endpoint/global state, then config file.
 SIP_REALM="$(printf '%s' "$EP_OUT" | tr -d '\r' | sed -n 's/.*from_domain[[:space:]]*:[[:space:]]*\([^[:space:]]*\).*/\1/p' | head -1)"
 if [ -z "$SIP_REALM" ]; then
-  GLOBAL_OUT="$("${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show global" 2>&1 || true)"
+  GLOBAL_OUT="$(docker_exec_asterisk asterisk -rx "pjsip show global" || true)"
   SIP_REALM="$(printf '%s' "$GLOBAL_OUT" | tr -d '\r' | sed -n 's/.*default_realm[[:space:]]*:[[:space:]]*\([^[:space:]]*\).*/\1/p' | head -1)"
 fi
 if [ -z "$SIP_REALM" ]; then
@@ -195,14 +208,15 @@ fi
 echo "[deploy] SIP realm/from_domain: ${SIP_REALM}"
 if [ -z "$SIP_REALM" ] || [ "$SIP_REALM" = "127.0.0.1" ]; then
   echo "[deploy] FAIL: SIP realm must be your public IP — check PUBLIC_HOST / ASTERISK_EXTERNAL_IP secrets"
-  "${DOCKER[@]}" exec voxera-asterisk env 2>/dev/null | grep -E '^(PUBLIC_HOST|ASTERISK_EXTERNAL_IP)=' || true
+  docker_exec_asterisk env 2>/dev/null | grep -E '^(PUBLIC_HOST|ASTERISK_EXTERNAL_IP)=' || true
   exit 1
 fi
 if [ "$SIP_REALM" != "$PUBLIC_HOST" ] && [ -n "$ASTERISK_EXTERNAL_IP" ] && [ "$SIP_REALM" != "$ASTERISK_EXTERNAL_IP" ]; then
   echo "[deploy] WARNING: SIP realm (${SIP_REALM}) differs from PUBLIC_HOST (${PUBLIC_HOST})"
 fi
 
-if "${DOCKER[@]}" exec voxera-asterisk asterisk -rx "module show like chan_sip" 2>&1 | grep -q '1 modules loaded'; then
+CHAN_SIP_OUT="$(docker_exec_asterisk asterisk -rx "module show like chan_sip" || true)"
+if printf '%s' "$CHAN_SIP_OUT" | grep -q '1 modules loaded'; then
   echo "[deploy] FAIL: chan_sip is loaded — WebSocket REGISTER will 401"
   exit 1
 fi
@@ -210,7 +224,7 @@ echo "[deploy] OK: pjsip endpoint 1001 + AOR 1001 loaded, chan_sip unloaded, rea
 
 echo "[deploy] Verifying Asterisk WebSocket modules (JsSIP needs /ws on :8089)..."
 sleep 3
-WS_MODULES="$("${DOCKER[@]}" exec voxera-asterisk asterisk -rx "module show like websocket" 2>&1 || true)"
+WS_MODULES="$(docker_exec_asterisk asterisk -rx "module show like websocket" || true)"
 if ! printf '%s\n' "$WS_MODULES" | grep -q 'res_http_websocket.so'; then
   echo "[deploy] FAIL: res_http_websocket not loaded — ws://host:8089/ws will return 404"
   printf '%s\n' "$WS_MODULES"
