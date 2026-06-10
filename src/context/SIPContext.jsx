@@ -99,6 +99,7 @@ export const SIPProvider = ({ children }) => {
   const autoRegisterAttemptedRef = useRef(false)
   const extensionRef = useRef(extension)
   const isRegisteredRef = useRef(isRegistered)
+  const socketRef = useRef(socket)
   const incomingCallRef = useRef(null)
 
   useEffect(() => {
@@ -108,6 +109,10 @@ export const SIPProvider = ({ children }) => {
   useEffect(() => {
     isRegisteredRef.current = isRegistered
   }, [isRegistered])
+
+  useEffect(() => {
+    socketRef.current = socket
+  }, [socket])
 
   useEffect(() => {
     currentCallRef.current = currentCall
@@ -126,44 +131,62 @@ export const SIPProvider = ({ children }) => {
     syncTimerFromConnectedAt(anchor, callStartTimeRef, setCallDuration, callTimerRef)
   }, [])
 
+  const notifyCalleeViaSocket = useCallback((caller, callee, id) => {
+    const sock = socketRef.current
+    const calleeExt = String(callee || '').trim()
+    const callerExt = String(caller || extensionRef.current || 'Unknown').trim()
+    if (!sock || !calleeExt) return
+    const payload = { id, caller: callerExt, callee: calleeExt }
+    sock.emit('call_ringing', payload)
+    sock.emit('call_start', {
+      ...payload,
+      direction: 'outbound',
+      status: 'ringing',
+    })
+    console.info(`[SIP] call_ringing sent — ${callerExt} → ext ${calleeExt}`)
+  }, [])
+
   const emitCallStart = useCallback((session, { caller, callee, direction, status }) => {
-    if (!socket) return
+    const sock = socketRef.current
+    if (!sock) return
     const id = getSessionCallId(session)
     if (!id) return
     currentCallIdRef.current = id
-    socket.emit('call_start', {
+    sock.emit('call_start', {
       id,
       caller: caller || extensionRef.current || 'Unknown',
       callee: callee || 'Unknown',
       direction,
       status,
     })
-  }, [socket])
+  }, [])
 
   const emitCallEstablish = useCallback((session) => {
-    if (!socket) return
+    const sock = socketRef.current
+    if (!sock) return
     const id = getSessionCallId(session)
     if (!id) return
     currentCallIdRef.current = id
     const remote = session.remote_identity?.uri?.user
     const local = extensionRef.current
-    socket.emit('call_establish', {
+    sock.emit('call_establish', {
       id,
       caller: session.direction === 'incoming' ? remote : local,
       callee: session.direction === 'incoming' ? local : remote,
       direction: session.direction === 'incoming' ? 'inbound' : 'outbound',
     })
-  }, [socket])
+  }, [])
 
   const emitCallEnd = useCallback((session, status) => {
-    if (!socket) return
+    const sock = socketRef.current
+    if (!sock) return
     const id = getSessionCallId(session) || currentCallIdRef.current
     if (!id) return
     const elapsed = callStartTimeRef.current
       ? Math.floor((Date.now() - callStartTimeRef.current) / 1000)
       : 0
-    socket.emit('call_end', { id, status, duration: elapsed })
-  }, [socket])
+    sock.emit('call_end', { id, status, duration: elapsed })
+  }, [])
 
   // Tell backend which SIP extension this browser owns (for incoming-call alerts).
   // Re-announce on socket connect — SIP often registers before Socket.io connects.
@@ -172,9 +195,10 @@ export const SIPProvider = ({ children }) => {
 
     const announceSipOnline = () => {
       const ext = extensionRef.current
-      if (!isRegisteredRef.current || !ext) return
-      socket.emit('sip_online', { extension: ext })
-      console.info(`[SIP] sip_online sent — ext ${ext} (socket ${socket.connected ? 'connected' : 'connecting'})`)
+      const sock = socketRef.current
+      if (!sock || !isRegisteredRef.current || !ext) return
+      sock.emit('sip_online', { extension: ext })
+      console.info(`[SIP] sip_online sent — ext ${ext} (socket ${sock.connected ? 'connected' : 'connecting'})`)
     }
 
     announceSipOnline()
@@ -462,38 +486,30 @@ export const SIPProvider = ({ children }) => {
       onOutgoingCall: (session, callee) => {
         setCurrentCall(session)
         setCallStatus('calling')
+        const caller = extensionRef.current || 'Unknown'
         emitCallStart(session, {
-          caller: extensionRef.current || 'Unknown',
+          caller,
           callee,
           direction: 'outbound',
           status: 'calling',
         })
-        if (socket) {
-          const id = getSessionCallId(session)
-          const payload = {
-            id,
-            caller: extensionRef.current || 'Unknown',
-            callee: String(callee || '').trim(),
-          }
-          socket.emit('call_ringing', payload)
-          console.info(`[SIP] call_ringing sent — ${payload.caller} → ext ${payload.callee}`)
-        }
+        notifyCalleeViaSocket(caller, callee, getSessionCallId(session))
       },
       onProgress: (session) => {
         setCallStatus((prev) => (prev === 'incoming' ? prev : 'ringing'))
-        if (socket && session) {
-          const id = getSessionCallId(session)
-          if (!id) return
-          const remote = session.remote_identity?.uri?.user || 'Unknown'
-          const local = extensionRef.current || 'Unknown'
-          socket.emit('call_start', {
-            id,
-            caller: session.direction === 'incoming' ? remote : local,
-            callee: session.direction === 'incoming' ? local : remote,
-            direction: session.direction === 'incoming' ? 'inbound' : 'outbound',
-            status: 'ringing',
-          })
-        }
+        const sock = socketRef.current
+        if (!sock || !session) return
+        const id = getSessionCallId(session)
+        if (!id) return
+        const remote = session.remote_identity?.uri?.user || 'Unknown'
+        const local = extensionRef.current || 'Unknown'
+        sock.emit('call_start', {
+          id,
+          caller: session.direction === 'incoming' ? remote : local,
+          callee: session.direction === 'incoming' ? local : remote,
+          direction: session.direction === 'incoming' ? 'inbound' : 'outbound',
+          status: 'ringing',
+        })
       },
       onAccepted: (session) => markCallConnected(session),
       onConfirmed: (session) => markCallConnected(session),
@@ -520,9 +536,9 @@ export const SIPProvider = ({ children }) => {
   }, [
     emitCallStart,
     emitCallEnd,
+    notifyCalleeViaSocket,
     markCallConnected,
     resetCallState,
-    socket,
     sipConfig.websocket,
     sipConfig.uri,
     sipConfig.password,
@@ -561,12 +577,13 @@ export const SIPProvider = ({ children }) => {
     }
     try {
       const domain = getUaSipDomain(ua)
+      notifyCalleeViaSocket(extensionRef.current || 'Unknown', normalizedTarget)
       sipMakeCall(ua, normalizedTarget, domain)
       // callStatus set in onOutgoingCall / onProgress / markCallConnected
     } catch (e) {
       console.error('[SIP] makeCall error:', e)
     }
-  }, [isRegistered, callStatus])
+  }, [isRegistered, callStatus, notifyCalleeViaSocket])
 
   const answerCall = useCallback(() => {
     const session = incomingCallRef.current || incomingCall
