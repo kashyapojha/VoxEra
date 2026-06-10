@@ -69,13 +69,22 @@ const SipLogin = () => {
           </span>
         </div>
 
+        {!isRegistered && (
+          <p className="text-xs text-blue-300/90 bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2 mb-1">
+            Two-browser test: Browser A → <span className="font-mono">1001</span> / password{' '}
+            <span className="font-mono">1001</span>. Browser B (incognito) →{' '}
+            <span className="font-mono">1002</span> / password <span className="font-mono">1002</span>.
+            Each browser must show a different extension below after Register.
+          </p>
+        )}
+
         {isRegistered ? (
           <div className="space-y-4">
             <div className="flex items-center gap-3 p-3 rounded-xl bg-green-500/10 border border-green-500/20">
               <Wifi size={18} className="text-green-400" />
               <div>
-                <p className="text-xs text-gray-400">Registered as</p>
-                <p className="font-mono font-semibold text-white">{extension}</p>
+                <p className="text-xs text-gray-400">Registered as — ready to receive calls</p>
+                <p className="font-mono font-semibold text-white text-lg">{extension}</p>
               </div>
             </div>
             <button

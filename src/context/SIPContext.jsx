@@ -15,6 +15,7 @@ import {
 } from '../services/sipService'
 import { env, parseSipUri, trimEnv, hostFromUrl } from '../config/env'
 import { useSocket } from './SocketContext'
+import { primeCallNotifications, stopAllCallAlerts } from '../utils/callAlerts'
 
 const SIPContext = createContext(null)
 
@@ -58,6 +59,7 @@ export const SIPProvider = ({ children }) => {
   const [registrationError, setRegistrationError] = useState(null)
   const [extension, setExtension] = useState(() => localStorage.getItem('sip_ext') || '')
   const [connectionStatus, setConnectionStatus] = useState('disconnected')
+  const [uaLive, setUaLive] = useState(false)
 
   const [sipConfig, setSipConfig] = useState({
     websocket: env.sipWsUrl,
@@ -86,6 +88,7 @@ export const SIPProvider = ({ children }) => {
   const registerSignatureRef = useRef('')
   const registerInProgressRef = useRef(false)
   const disconnectTimerRef = useRef(null)
+  const autoRegisterAttemptedRef = useRef(false)
   const extensionRef = useRef(extension)
 
   useEffect(() => {
@@ -212,6 +215,7 @@ export const SIPProvider = ({ children }) => {
   }, [])
 
   const resetCallState = useCallback(() => {
+    stopAllCallAlerts()
     connectedSessionRef.current = null
     setCallStatus('idle')
     setCurrentCall(null)
@@ -287,6 +291,13 @@ export const SIPProvider = ({ children }) => {
     setIsRegistering(true)
     setRegistrationError(null)
     setConnectionStatus('connecting')
+    setUaLive(false)
+
+    const trimmedExt = ext ? trimEnv(ext) : ''
+    if (trimmedExt && pass) {
+      localStorage.setItem('sip_ext', trimmedExt)
+      sessionStorage.setItem('sip_pass', pass)
+    }
 
     const callbacks = {
       onConnecting: () => setConnectionStatus('connecting'),
@@ -297,6 +308,7 @@ export const SIPProvider = ({ children }) => {
       },
       onDisconnected: (cause) => {
         console.warn('[SIP] WebSocket dropped, JsSIP reconnecting…', cause || 'no cause')
+        setUaLive(false)
         setConnectionStatus('connecting')
         clearTimeout(disconnectTimerRef.current)
         disconnectTimerRef.current = setTimeout(() => {
@@ -315,15 +327,19 @@ export const SIPProvider = ({ children }) => {
         setIsRegistered(true)
         setIsRegistering(false)
         setConnectionStatus('connected')
+        setUaLive(true)
         setExtension(registeredExt)
         setRegistrationError(null)
         localStorage.setItem('sip_ext', registeredExt)
         localStorage.setItem('sip_registered', 'true')
+        primeCallNotifications()
+        console.info(`[SIP] Extension ${registeredExt} ready to receive calls on this browser`)
       },
       onUnregistered: () => {
         registerInProgressRef.current = false
         setIsRegistered(false)
         setIsRegistering(false)
+        setUaLive(false)
         setConnectionStatus('disconnected')
         localStorage.removeItem('sip_registered')
       },
@@ -331,6 +347,7 @@ export const SIPProvider = ({ children }) => {
         registerInProgressRef.current = false
         setIsRegistered(false)
         setIsRegistering(false)
+        setUaLive(false)
         setConnectionStatus('disconnected')
         let msg = `Registration failed: ${detail}`
         if (String(detail).startsWith('404')) {
@@ -427,14 +444,26 @@ export const SIPProvider = ({ children }) => {
     setIsRegistering(false)
     setConnectionStatus('disconnected')
     localStorage.removeItem('sip_registered')
+    sessionStorage.removeItem('sip_pass')
+    setUaLive(false)
   }, [resetCallState])
 
   const makeCall = useCallback((target) => {
-    if (!uaRef.current || !isRegistered) return
+    const ua = uaRef.current
+    if (!ua || !isRegistered) return
+    if (!ua.isConnected?.() || !ua.isRegistered?.()) {
+      setRegistrationError('SIP not connected — register again before calling')
+      return
+    }
     if (callStatus !== 'idle') return
+    const normalizedTarget = trimEnv(target)
+    if (normalizedTarget === extensionRef.current) {
+      setRegistrationError(`Cannot call your own extension (${normalizedTarget})`)
+      return
+    }
     try {
-      const domain = getUaSipDomain(uaRef.current)
-      sipMakeCall(uaRef.current, target, domain)
+      const domain = getUaSipDomain(ua)
+      sipMakeCall(ua, normalizedTarget, domain)
       // callStatus set in onOutgoingCall / onProgress / markCallConnected
     } catch (e) {
       console.error('[SIP] makeCall error:', e)
@@ -443,6 +472,7 @@ export const SIPProvider = ({ children }) => {
 
   const answerCall = useCallback(() => {
     if (!incomingCall) return
+    stopAllCallAlerts()
     sipAnswerCall(incomingCall)
     setCurrentCall(incomingCall)
     // connected state set by onAccepted / onConfirmed / onMediaConnected
@@ -450,6 +480,7 @@ export const SIPProvider = ({ children }) => {
 
   const rejectCall = useCallback(() => {
     if (!incomingCall) return
+    stopAllCallAlerts()
     terminateSession(incomingCall)
   }, [incomingCall])
 
@@ -488,7 +519,34 @@ export const SIPProvider = ({ children }) => {
     }
   }, [])
 
-  const sipOnline = isRegistered && connectionStatus === 'connected'
+  // Re-register after refresh so Asterisk has a live WebSocket contact for this browser.
+  useEffect(() => {
+    if (autoRegisterAttemptedRef.current) return
+    autoRegisterAttemptedRef.current = true
+    const ext = localStorage.getItem('sip_ext')
+    const pass = sessionStorage.getItem('sip_pass')
+    if (ext && pass) {
+      console.info(`[SIP] Restoring registration for extension ${ext}`)
+      register(ext, pass)
+    }
+  }, [register])
+
+  // Detect dead WebSocket while UI still shows registered.
+  useEffect(() => {
+    const id = setInterval(() => {
+      const ua = uaRef.current
+      if (!ua || !isRegistered) return
+      const live = Boolean(ua.isConnected?.() && ua.isRegistered?.())
+      setUaLive(live)
+      if (!live) {
+        setIsRegistered(false)
+        setRegistrationError('SIP connection lost — click Register on Softphone to receive calls')
+      }
+    }, 8000)
+    return () => clearInterval(id)
+  }, [isRegistered])
+
+  const sipOnline = isRegistered && connectionStatus === 'connected' && uaLive
 
   const value = {
     isRegistered,

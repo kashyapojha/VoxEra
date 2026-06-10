@@ -69,6 +69,7 @@ generate_pjsip_configs() {
 type=global
 endpoint_identifier_order=auth_username,username
 default_realm=${ASTERISK_EXTERNAL_IP}
+dtls_auto_generate_cert=yes
 EOF
 
   cat > "${PJSIP_DIR}/pjsip.transport.conf" <<EOF
@@ -99,14 +100,16 @@ EOF
   cat > "${PJSIP_DIR}/pjsip.aor.conf" <<EOF
 [1001]
 type=aor
-max_contacts=5
-remove_existing=yes
+max_contacts=10
+remove_existing=no
+qualify_frequency=0
 support_path=yes
 
 [1002]
 type=aor
-max_contacts=5
-remove_existing=yes
+max_contacts=10
+remove_existing=no
+qualify_frequency=0
 support_path=yes
 EOF
 

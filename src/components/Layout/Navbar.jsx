@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Phone, BarChart, Settings, LogOut, Menu, X, PieChart } from 'lucide-react'
+import { Phone, BarChart, Settings, LogOut, Menu, X, PieChart, PhoneOff } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
@@ -9,7 +9,15 @@ const Navbar = ({ onMenuClick, isMobileMenuOpen }) => {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, logout } = useAuth()
-  const { isRegistered } = useSip()
+  const {
+    isRegistered,
+    sipOnline,
+    extension,
+    incomingCall,
+    incomingFrom,
+    answerCall,
+    rejectCall,
+  } = useSip()
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
 
   const navItems = [
@@ -28,6 +36,31 @@ const Navbar = ({ onMenuClick, isMobileMenuOpen }) => {
   }
 
   return (
+    <>
+    {incomingCall && (
+      <div className="sticky top-0 z-[100] bg-green-600/95 border-b border-green-400/40 px-4 py-2 flex items-center justify-between gap-3">
+        <p className="text-sm text-white font-medium truncate">
+          Incoming call from <span className="font-mono">{incomingFrom || 'Unknown'}</span>
+        </p>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={rejectCall}
+            className="p-2 rounded-full bg-red-500 hover:bg-red-600 text-white"
+            aria-label="Decline call"
+          >
+            <PhoneOff size={18} />
+          </button>
+          <button
+            type="button"
+            onClick={answerCall}
+            className="px-3 py-1.5 rounded-full bg-white text-green-700 text-sm font-semibold hover:bg-green-50"
+          >
+            Answer
+          </button>
+        </div>
+      </div>
+    )}
     <nav className="glass border-b border-white/10 px-6 py-4 sticky top-0 z-50">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -43,9 +76,18 @@ const Navbar = ({ onMenuClick, isMobileMenuOpen }) => {
               <span className="text-2xl font-bold gradient-text">VoxEra</span>
               <span className="text-xs text-gray-400">Enterprise Communications</span>
             </div>
-            <div className="flex items-center gap-3">
-              <span className={`text-sm px-2 py-1 rounded-full ${isRegistered ? 'bg-green-500/20 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
-                {isRegistered ? 'Online' : 'Offline'}
+            <div className="flex items-center gap-2">
+              {extension && (
+                <span className="text-xs font-mono text-gray-400 hidden sm:inline">
+                  ext {extension}
+                </span>
+              )}
+              <span className={`text-sm px-2 py-1 rounded-full ${
+                sipOnline ? 'bg-green-500/20 text-green-400'
+                  : isRegistered ? 'bg-amber-500/20 text-amber-400'
+                    : 'bg-red-500/10 text-red-400'
+              }`}>
+                {sipOnline ? 'SIP ready' : isRegistered ? 'SIP reconnecting' : 'SIP offline'}
               </span>
             </div>
           </Link>
@@ -119,6 +161,7 @@ const Navbar = ({ onMenuClick, isMobileMenuOpen }) => {
         </div>
       </div>
     </nav>
+    </>
   )
 }
 

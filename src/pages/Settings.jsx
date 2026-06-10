@@ -5,7 +5,7 @@ import { User, Bell, Shield, Phone, Globe, Save, LogOut } from 'lucide-react'
 import GlassCard from '../components/UI/GlassCard'
 import { useSip } from '../context/SIPContext'
 import { useAuth } from '../context/AuthContext'
-import { env, parseSipUri } from '../config/env'
+import { env, parseSipUri, hostFromUrl } from '../config/env'
 
 const Settings = () => {
   const {
@@ -43,8 +43,14 @@ const Settings = () => {
   }, [setSipConfig])
 
   const handleSIPRegister = () => {
-    const { extension: ext, domain } = parseSipUri(sipConfig.uri || env.sipUri)
-    register(ext || extension, sipConfig.password, domain)
+    // Use Softphone extension (localStorage) — not baked VITE_SIP_URI (always 1001).
+    const ext = extension || localStorage.getItem('sip_ext') || parseSipUri(sipConfig.uri || env.sipUri).extension
+    const pass = sipConfig.password || env.sipPassword
+    const domain = hostFromUrl(sipConfig.websocket || env.sipWsUrl) || parseSipUri(sipConfig.uri || env.sipUri).domain
+    if (!ext || !pass) {
+      return
+    }
+    register(ext, pass, domain)
   }
 
   const parsedSip = parseSipUri(sipConfig.uri || env.sipUri)

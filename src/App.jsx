@@ -13,6 +13,7 @@ import Login from './pages/Login'
 import Settings from './pages/Settings'
 import Signup from './pages/Signup'
 import IncomingCallModal from './components/Softphone/IncomingCallModal'
+import CallAlerts from './components/Softphone/CallAlerts'
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
         <SocketProvider>
           <SIPProvider>
             <IncomingCallModal />
+            <CallAlerts />
             <audio id="remoteAudio" autoPlay playsInline style={{ display: 'none' }} />
             <Routes>
               <Route path="/" element={<GuestRoute><Landing /></GuestRoute>} />
