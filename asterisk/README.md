@@ -27,13 +27,15 @@ Mounted volumes: `pjsip.conf.template`, `http.conf.template`, `modules.conf`, `s
 
 ```
 REGISTER From/To: 1001@13.62.237.148
-  → auth [1001-auth]       (endpoint auth=1001-auth)
-  → aor [1001] type=aor    (listed BEFORE endpoint — same section name, different type=)
-  → endpoint [1001]        (aors=1001 — must match REGISTER username, not 1001-aor)
-  → transport transport-wss (if missing: WebSocket connects but REGISTER times out)
+  → endpoint [1001]              (only one [1001] section — REGISTER matches this name)
+  → aor [1001@13.62.237.148]     (unique section name; endpoint aors=1001@13.62.237.148)
+  → auth [1001-auth]
+  → transport transport-wss
 ```
 
-`modules.conf` is copied into the image (preload `res_pjsip`, `res_http_websocket`, `res_pjsip_transport_websocket`, `chan_pjsip`). Without it, WS connects but SIP REGISTER gets no response.
+**Never** use two `[1001]` blocks (`type=aor` + `type=endpoint`). Asterisk merges duplicate section names into one category — the AOR is silently dropped → `Unable to find object 1001`.
+
+`modules.conf` is copied into the image (preload PJSIP + WebSocket modules). Without it, WebSocket connects but REGISTER times out.
 
 ## Deploy (rebuild required)
 
@@ -49,8 +51,8 @@ On EC2, `scripts/deploy-ec2.sh` runs `build asterisk` on every deploy. If you de
 Check startup logs for:
 
 ```text
-[asterisk] endpoint aors: aors=1001
-[asterisk] PJSIP ready — endpoint 1001 + AOR 1001 + transport-wss loaded
+[asterisk] endpoint aors: aors=1001@13.62.237.148
+[asterisk] PJSIP ready — endpoint 1001 + AOR 1001@13.62.237.148 + transport-wss
 ```
 
 ## Verify
@@ -58,7 +60,7 @@ Check startup logs for:
 ```bash
 docker exec -it voxera-asterisk cat /etc/asterisk/pjsip.conf
 docker exec -it voxera-asterisk asterisk -rx "pjsip show endpoint 1001"
-docker exec -it voxera-asterisk asterisk -rx "pjsip show aor 1001"
+docker exec -it voxera-asterisk asterisk -rx "pjsip show aor 1001@YOUR_PUBLIC_IP"
 docker exec -it voxera-asterisk asterisk -rx "pjsip show transport transport-wss"
 docker exec -it voxera-asterisk asterisk -rx "pjsip show auth 1001-auth"
 docker exec -it voxera-asterisk asterisk -rx "pjsip show contacts"

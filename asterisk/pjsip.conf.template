@@ -1,5 +1,5 @@
-; WebRTC PJSIP — reference template (runtime uses docker-entrypoint.sh inline config)
-; AOR [1001] before endpoint [1001] — same name, different type= (Asterisk sorcery allows this).
+; Reference template — runtime uses docker-entrypoint.sh
+; One [1001] endpoint only. AOR is [1001@${ASTERISK_EXTERNAL_IP}] (unique section name).
 
 [global]
 type=global
@@ -20,7 +20,7 @@ username=1001
 password=1001
 realm=${ASTERISK_EXTERNAL_IP}
 
-[1001]
+[1001@${ASTERISK_EXTERNAL_IP}]
 type=aor
 max_contacts=5
 remove_existing=yes
@@ -30,39 +30,9 @@ support_path=yes
 type=endpoint
 transport=transport-wss
 context=internal
-aors=1001
+aors=1001@${ASTERISK_EXTERNAL_IP}
 auth=1001-auth
 from_user=1001
-from_domain=${ASTERISK_EXTERNAL_IP}
-disallow=all
-allow=opus,ulaw,alaw
-webrtc=yes
-identify_by=username,auth_username
-force_rport=yes
-rewrite_contact=yes
-rtp_symmetric=yes
-direct_media=no
-
-[1002-auth]
-type=auth
-auth_type=userpass
-username=1002
-password=1002
-realm=${ASTERISK_EXTERNAL_IP}
-
-[1002]
-type=aor
-max_contacts=5
-remove_existing=yes
-support_path=yes
-
-[1002]
-type=endpoint
-transport=transport-wss
-context=internal
-aors=1002
-auth=1002-auth
-from_user=1002
 from_domain=${ASTERISK_EXTERNAL_IP}
 disallow=all
 allow=opus,ulaw,alaw
