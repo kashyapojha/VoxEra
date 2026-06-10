@@ -1,4 +1,4 @@
-; WebRTC PJSIP — generated at container start (envsubst)
+; WebRTC PJSIP — reference template (runtime uses docker-entrypoint.sh inline config)
 
 [global]
 type=global
@@ -19,7 +19,7 @@ username=1001
 password=1001
 realm=${ASTERISK_EXTERNAL_IP}
 
-[1001]
+[1001-aor]
 type=aor
 max_contacts=5
 remove_existing=yes
@@ -28,20 +28,13 @@ remove_existing=yes
 type=endpoint
 transport=transport-wss
 context=internal
-aors=1001
+aors=1001-aor
 auth=1001-auth
-inbound_auth=1001-auth
 from_user=1001
 from_domain=${ASTERISK_EXTERNAL_IP}
 disallow=all
 allow=opus,ulaw,alaw
 webrtc=yes
-dtls_auto_generate_cert=yes
-dtls_verify=fingerprint
-dtls_setup=actpass
-ice_support=yes
-media_use_received_transport=yes
-rtcp_mux=yes
 force_rport=yes
 rewrite_contact=yes
 rtp_symmetric=yes
@@ -54,7 +47,7 @@ username=1002
 password=1002
 realm=${ASTERISK_EXTERNAL_IP}
 
-[1002]
+[1002-aor]
 type=aor
 max_contacts=5
 remove_existing=yes
@@ -63,20 +56,13 @@ remove_existing=yes
 type=endpoint
 transport=transport-wss
 context=internal
-aors=1002
+aors=1002-aor
 auth=1002-auth
-inbound_auth=1002-auth
 from_user=1002
 from_domain=${ASTERISK_EXTERNAL_IP}
 disallow=all
 allow=opus,ulaw,alaw
 webrtc=yes
-dtls_auto_generate_cert=yes
-dtls_verify=fingerprint
-dtls_setup=actpass
-ice_support=yes
-media_use_received_transport=yes
-rtcp_mux=yes
 force_rport=yes
 rewrite_contact=yes
 rtp_symmetric=yes

@@ -23,7 +23,7 @@ HTTP_OUTPUT="/etc/asterisk/http.conf"
 
 rm -f /etc/asterisk/pjsip.conf /etc/asterisk/pjsip_wizard.conf 2>/dev/null || true
 
-for conf in sorcery.conf extconfig.conf extensions.conf rtp.conf; do
+for conf in extconfig.conf extensions.conf rtp.conf; do
   src="/etc/asterisk/${conf}"
   if [ -f "$src" ]; then
     strip_crlf < "$src" > "/tmp/${conf}"
@@ -66,18 +66,11 @@ transport=transport-wss
 context=internal
 aors=1001-aor
 auth=1001-auth
-inbound_auth=1001-auth
 from_user=1001
 from_domain=${ASTERISK_EXTERNAL_IP}
 disallow=all
 allow=opus,ulaw,alaw
 webrtc=yes
-dtls_auto_generate_cert=yes
-dtls_verify=fingerprint
-dtls_setup=actpass
-ice_support=yes
-media_use_received_transport=yes
-rtcp_mux=yes
 force_rport=yes
 rewrite_contact=yes
 rtp_symmetric=yes
@@ -101,18 +94,11 @@ transport=transport-wss
 context=internal
 aors=1002-aor
 auth=1002-auth
-inbound_auth=1002-auth
 from_user=1002
 from_domain=${ASTERISK_EXTERNAL_IP}
 disallow=all
 allow=opus,ulaw,alaw
 webrtc=yes
-dtls_auto_generate_cert=yes
-dtls_verify=fingerprint
-dtls_setup=actpass
-ice_support=yes
-media_use_received_transport=yes
-rtcp_mux=yes
 force_rport=yes
 rewrite_contact=yes
 rtp_symmetric=yes

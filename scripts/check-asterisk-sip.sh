@@ -14,7 +14,7 @@ echo "=== Asterisk container ==="
 echo ""
 
 echo "=== pjsip.conf (1001 endpoint) ==="
-$C grep -E '^\[1001|^\[1001-auth\]|^type=|^aors=|^auth=|^inbound_auth=|^realm=' /etc/asterisk/pjsip.conf 2>/dev/null || echo "Container not running or pjsip.conf missing"
+$C grep -E '^\[1001|^\[1001-auth\]|^\[1001-aor\]|^type=|^aors=|^auth=|^realm=' /etc/asterisk/pjsip.conf 2>/dev/null || echo "Container not running or pjsip.conf missing"
 echo ""
 
 echo "=== chan_sip (must be unloaded — otherwise WebSocket REGISTER hits wrong module) ==="
@@ -39,7 +39,7 @@ echo ""
 echo "=== PJSIP objects ==="
 $C asterisk -rx "pjsip show endpoint 1001" 2>/dev/null || true
 echo ""
-$C asterisk -rx "pjsip show aor 1001" 2>/dev/null || true
+$C asterisk -rx "pjsip show aor 1001-aor" 2>/dev/null || true
 echo ""
 $C asterisk -rx "pjsip show auth 1001-auth" 2>/dev/null || true
 echo ""
@@ -49,14 +49,16 @@ $C asterisk -rx "pjsip show contacts" 2>/dev/null || true
 echo ""
 
 ok=1
-$C grep -q '^aors=1001$' /etc/asterisk/pjsip.conf 2>/dev/null || ok=0
+$C grep -q '^aors=1001-aor$' /etc/asterisk/pjsip.conf 2>/dev/null || ok=0
 $C grep -q '^auth=1001-auth$' /etc/asterisk/pjsip.conf 2>/dev/null || ok=0
-$C grep -q '^inbound_auth=1001-auth$' /etc/asterisk/pjsip.conf 2>/dev/null || ok=0
-if $C asterisk -rx "pjsip show aor 1001" 2>&1 | grep -q 'Unable to find'; then
-  echo "FAIL: AOR 1001 not loaded in Asterisk — REGISTER returns 404"
+if $C asterisk -rx "pjsip show aor 1001-aor" 2>&1 | grep -q 'Unable to find'; then
+  echo "FAIL: AOR 1001-aor not loaded in Asterisk — REGISTER returns 404"
   ok=0
 fi
-$C grep -q '^\[1001-auth\]$' /etc/asterisk/pjsip.conf 2>/dev/null || ok=0
+if $C asterisk -rx "pjsip show endpoint 1001" 2>&1 | grep -q 'Unable to find'; then
+  echo "FAIL: endpoint 1001 not loaded in Asterisk"
+  ok=0
+fi
 chan_loaded="$($C asterisk -rx "module show like chan_sip" 2>/dev/null | awk '/modules loaded/ {print $1}' | head -1)"
 if [ "${chan_loaded:-0}" != "0" ]; then
   echo "FAIL: chan_sip is loaded — WebSocket REGISTER will 401 against wrong module"
@@ -72,8 +74,8 @@ if [ "${WS_CODE:-404}" = "404" ]; then
 fi
 
 if [ "$ok" -eq 1 ]; then
-  echo "OK: aors=1001 + auth=1001-auth + default_realm set"
+  echo "OK: endpoint 1001 + AOR 1001-aor + auth 1001-auth configured"
 else
-  echo "FAIL: config mismatch — need [1001-auth] section, aors=1001, auth=1001-auth, default_realm=public IP"
+  echo "FAIL: config mismatch — need [1001-auth], aors=1001-aor, auth=1001-auth, default_realm=public IP"
   echo "Fix: git pull && docker compose --env-file .env -f docker-compose.prod.yml up -d --force-recreate asterisk"
 fi
