@@ -55,7 +55,7 @@ username=1001
 password=1001
 realm=${ASTERISK_EXTERNAL_IP}
 
-[1001-aor]
+[1001]
 type=aor
 max_contacts=5
 remove_existing=yes
@@ -65,13 +65,14 @@ support_path=yes
 type=endpoint
 transport=transport-wss
 context=internal
-aors=1001-aor
+aors=1001
 auth=1001-auth
 from_user=1001
 from_domain=${ASTERISK_EXTERNAL_IP}
 disallow=all
 allow=opus,ulaw,alaw
 webrtc=yes
+identify_by=username,auth_username
 force_rport=yes
 rewrite_contact=yes
 rtp_symmetric=yes
@@ -84,7 +85,7 @@ username=1002
 password=1002
 realm=${ASTERISK_EXTERNAL_IP}
 
-[1002-aor]
+[1002]
 type=aor
 max_contacts=5
 remove_existing=yes
@@ -94,13 +95,14 @@ support_path=yes
 type=endpoint
 transport=transport-wss
 context=internal
-aors=1002-aor
+aors=1002
 auth=1002-auth
 from_user=1002
 from_domain=${ASTERISK_EXTERNAL_IP}
 disallow=all
 allow=opus,ulaw,alaw
 webrtc=yes
+identify_by=username,auth_username
 force_rport=yes
 rewrite_contact=yes
 rtp_symmetric=yes
@@ -135,10 +137,10 @@ if [ "$ASTERISK_EXTERNAL_IP" = "127.0.0.1" ]; then
 fi
 echo "[asterisk] digest default_realm: $(grep '^default_realm=' "$PJSIP_OUTPUT" | head -1)"
 echo "[asterisk] endpoint_identifier_order: $(grep '^endpoint_identifier_order=' "$PJSIP_OUTPUT" | head -1)"
-echo "[asterisk] endpoint aors: $(grep '^aors=1001-aor$' "$PJSIP_OUTPUT" | head -1)"
+echo "[asterisk] endpoint aors: $(grep '^aors=1001$' "$PJSIP_OUTPUT" | head -1)"
 
-if ! grep -q '^aors=1001-aor$' "$PJSIP_OUTPUT"; then
-  echo "[asterisk] FATAL: generated pjsip.conf missing aors=1001-aor"
+if ! grep -q '^aors=1001$' "$PJSIP_OUTPUT"; then
+  echo "[asterisk] FATAL: generated pjsip.conf missing aors=1001"
   sed -n '1,60p' "$PJSIP_OUTPUT" 2>/dev/null || true
   exit 1
 fi
@@ -165,7 +167,7 @@ if [ "$cli_ready" -eq 1 ]; then
   sleep 3
   "$AST_BIN" -rx "pjsip reload" 2>&1 | tail -2 || true
   sleep 2
-  AOR_OUT="$("$AST_BIN" -rx "pjsip show aor 1001-aor" 2>&1)" || AOR_OUT=""
+  AOR_OUT="$("$AST_BIN" -rx "pjsip show aor 1001" 2>&1)" || AOR_OUT=""
   EP_OUT="$("$AST_BIN" -rx "pjsip show endpoint 1001" 2>&1)" || EP_OUT=""
   if printf '%s' "$AOR_OUT" | grep -qi 'Unable to find' || printf '%s' "$EP_OUT" | grep -qi 'Unable to find'; then
     echo "[asterisk] WARNING: PJSIP 1001 not loaded after reload"
@@ -176,7 +178,7 @@ if [ "$cli_ready" -eq 1 ]; then
       grep -iE 'error|pjsip|Could not find option|duplicate' /var/log/asterisk/messages 2>/dev/null | tail -20 || true
     fi
   else
-    echo "[asterisk] PJSIP ready — endpoint 1001 + AOR 1001-aor loaded"
+    echo "[asterisk] PJSIP ready — endpoint 1001 + AOR 1001 loaded"
   fi
 else
   echo "[asterisk] WARNING: Asterisk CLI not ready within 30s"

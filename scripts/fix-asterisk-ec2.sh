@@ -38,13 +38,13 @@ for i in $(seq 1 60); do
     exit 1
   fi
 
-  AOR="$("${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show aor 1001-aor" 2>&1 || true)"
+  AOR="$("${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show aor 1001" 2>&1 || true)"
   EP="$("${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show endpoint 1001" 2>&1 || true)"
-  if printf '%s' "$AOR" | grep -q '1001-aor' \
+  if printf '%s' "$AOR" | grep -q '1001' \
     && printf '%s' "$AOR" | grep -qv 'Unable to find' \
     && printf '%s' "$EP" | grep -q '1001' \
     && printf '%s' "$EP" | grep -qv 'Unable to find'; then
-    echo "OK: PJSIP endpoint 1001 + AOR 1001-aor loaded"
+    echo "OK: PJSIP endpoint 1001 + AOR 1001 loaded"
     "${DOCKER[@]}" ps --filter name=voxera-asterisk
     exit 0
   fi
