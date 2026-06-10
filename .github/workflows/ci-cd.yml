@@ -145,7 +145,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER || 'ubuntu' }}
           key_path: /home/runner/.ssh/ec2_key
-          command_timeout: 10m
+          command_timeout: 20m
           envs: EC2_DEPLOY_USER,APP_DIR,GITHUB_REPO,GITHUB_REF_NAME,GITHUB_TOKEN,DOCKER_USERNAME,DOCKERHUB_TOKEN,DOCKER_FRONTEND_REPO,DOCKER_BACKEND_REPO,IMAGE_TAG,JWT_SECRET,POSTGRES_PASSWORD,PUBLIC_HOST,ASTERISK_EXTERNAL_IP
           script: |
             set -e

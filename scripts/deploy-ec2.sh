@@ -96,13 +96,15 @@ fi
 # Retry docker exec — Asterisk restart/healthcheck can briefly return HTTP 409.
 docker_exec_asterisk() {
   local attempt out
-  for attempt in 1 2 3 4 5; do
-    out="$(timeout 5 "${DOCKER[@]}" exec voxera-asterisk "$@" 2>&1)" || out="${out:-}"
-    if ! printf '%s' "$out" | grep -qiE 'unable to upgrade to tcp|received 409|container.*is restarting|is not running'; then
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    if ! out="$("${DOCKER[@]}" exec voxera-asterisk "$@" 2>&1)"; then
+      out="${out:-}"
+    fi
+    if ! printf '%s' "$out" | grep -qiE 'unable to upgrade to tcp|received 409|container.*is restarting|is not running|OCI runtime exec failed'; then
       printf '%s' "$out"
       return 0
     fi
-    sleep 2
+    sleep 3
   done
   printf '%s' "$out"
   return 1
@@ -113,7 +115,7 @@ pjsip_cli_ok() {
   local out="$1"
   [ -n "$out" ] \
     && ! printf '%s' "$out" | grep -qi 'Unable to find' \
-    && ! printf '%s' "$out" | grep -qiE 'unable to upgrade to tcp|received 409|Error response|is not running' \
+    && ! printf '%s' "$out" | grep -qiE 'unable to upgrade to tcp|received 409|Error response|is not running|Unable to connect' \
     && printf '%s' "$out" | grep -q '1001'
 }
 
@@ -121,8 +123,8 @@ echo "[deploy] Pulling app images..."
 time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml pull backend frontend postgres
 
 # Asterisk config is baked into the image (no host volume mounts). Rebuild every deploy.
-echo "[deploy] Rebuilding Asterisk image (no cache)..."
-time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml build --no-cache asterisk
+echo "[deploy] Rebuilding Asterisk image..."
+time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml build asterisk
 
 echo "[deploy] Starting containers (recreate asterisk + frontend)..."
 if ! time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml up -d --remove-orphans --force-recreate asterisk frontend; then
@@ -175,8 +177,10 @@ echo "Waiting for Asterisk PJSIP 1001..."
 AOR_OUT=""
 EP_OUT=""
 AST_HEALTH="starting"
-for i in $(seq 1 90); do
+AST_UPTIME=""
+for i in $(seq 1 60); do
   AST_HEALTH="$("${DOCKER[@]}" inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' voxera-asterisk 2>/dev/null || echo "missing")"
+  AST_UPTIME="$("${DOCKER[@]}" inspect --format='{{.State.Status}} started={{.State.StartedAt}}' voxera-asterisk 2>/dev/null || echo "missing")"
   AOR_OUT="$(docker_exec_asterisk asterisk -rx "pjsip show aor 1001" || true)"
   EP_OUT="$(docker_exec_asterisk asterisk -rx "pjsip show endpoint 1001" || true)"
   if pjsip_cli_ok "$AOR_OUT" && pjsip_cli_ok "$EP_OUT"; then
@@ -184,10 +188,13 @@ for i in $(seq 1 90); do
     break
   fi
 
-  if [ "$i" -eq 90 ]; then
+  if [ "$i" -eq 60 ]; then
     echo "=== Asterisk PJSIP not ready (docker health: ${AST_HEALTH}) ==="
-    "${DOCKER[@]}" inspect voxera-asterisk --format='{{range .State.Health.Log}}{{.Output}}{{end}}' 2>/dev/null | tail -5 || true
-    "${DOCKER[@]}" logs voxera-asterisk --tail 150 2>&1 || true
+    echo "Container: ${AST_UPTIME}"
+    "${DOCKER[@]}" inspect voxera-asterisk --format='RestartCount={{.RestartCount}}' 2>/dev/null || true
+    "${DOCKER[@]}" inspect voxera-asterisk --format='{{range .State.Health.Log}}{{.Output}}{{end}}' 2>/dev/null | tail -8 || true
+    "${DOCKER[@]}" logs voxera-asterisk --tail 200 2>&1 || true
+    docker_exec_asterisk cat /etc/asterisk/pjsip.conf 2>/dev/null | head -40 || true
     printf '%s\n' "$AOR_OUT"
     printf '%s\n' "$EP_OUT"
     docker_exec_asterisk asterisk -rx "pjsip show aors" || true
@@ -196,10 +203,10 @@ for i in $(seq 1 90); do
     exit 1
   fi
 
-  if [ $((i % 15)) -eq 0 ]; then
-    echo "  ... still waiting (${i}/90, health=${AST_HEALTH})"
+  if [ $((i % 10)) -eq 0 ]; then
+    echo "  ... still waiting (${i}/60, health=${AST_HEALTH})"
   fi
-  sleep 2
+  sleep 3
 done
 
 echo "[deploy] Verifying Asterisk PJSIP runtime..."

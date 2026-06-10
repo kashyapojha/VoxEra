@@ -19,7 +19,8 @@ COPY rtp.conf /etc/asterisk/rtp.conf
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 COPY healthcheck.sh /usr/local/bin/asterisk-healthcheck.sh
 
-RUN mkdir -p /var/log/asterisk /var/run/asterisk /etc/asterisk/templates && \
+RUN rm -f /etc/asterisk/pjsip.conf /etc/asterisk/pjsip_wizard.conf 2>/dev/null || true && \
+    mkdir -p /var/log/asterisk /var/run/asterisk /etc/asterisk/templates && \
     chmod +x /docker-entrypoint.sh /usr/local/bin/asterisk-healthcheck.sh && \
     chown -R asterisk:asterisk /etc/asterisk /var/log/asterisk /var/run/asterisk 2>/dev/null || true
 

@@ -13,6 +13,9 @@ strip_crlf() {
   tr -d '\r'
 }
 
+AST_BIN="/usr/sbin/asterisk"
+[ -x "$AST_BIN" ] || AST_BIN="asterisk"
+
 mkdir -p /var/run/asterisk /var/log/asterisk 2>/dev/null || true
 
 PJSIP_TEMPLATE="/etc/asterisk/templates/pjsip.conf.template"
@@ -20,7 +23,7 @@ PJSIP_OUTPUT="/etc/asterisk/pjsip.conf"
 HTTP_TEMPLATE="/etc/asterisk/templates/http.conf.template"
 HTTP_OUTPUT="/etc/asterisk/http.conf"
 
-rm -f /etc/asterisk/pjsip_wizard.conf 2>/dev/null || true
+rm -f /etc/asterisk/pjsip.conf /etc/asterisk/pjsip_wizard.conf 2>/dev/null || true
 
 for conf in modules.conf sorcery.conf extconfig.conf extensions.conf rtp.conf; do
   src="/etc/asterisk/${conf}"
@@ -65,5 +68,37 @@ for mod in res_http_websocket res_pjsip_transport_websocket; do
   fi
 done
 
-echo "[asterisk] starting Asterisk (foreground)..."
-exec /usr/sbin/asterisk -f -vvvg -c
+echo "[asterisk] starting Asterisk..."
+"$AST_BIN" -f -vvvg -c &
+ASTERISK_PID=$!
+
+cli_ready=0
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+  if "$AST_BIN" -rx "core show uptime" 2>/dev/null | grep -qi uptime; then
+    cli_ready=1
+    break
+  fi
+  sleep 2
+done
+
+if [ "$cli_ready" -eq 1 ]; then
+  "$AST_BIN" -rx "module reload res_pjsip.so" 2>&1 || true
+  "$AST_BIN" -rx "pjsip reload" 2>&1 || true
+  AOR_OUT="$("$AST_BIN" -rx "pjsip show aor 1001" 2>&1)" || AOR_OUT=""
+  EP_OUT="$("$AST_BIN" -rx "pjsip show endpoint 1001" 2>&1)" || EP_OUT=""
+  if printf '%s' "$AOR_OUT" | grep -qi 'Unable to find' || printf '%s' "$EP_OUT" | grep -qi 'Unable to find'; then
+    echo "[asterisk] WARNING: PJSIP 1001 not loaded after reload"
+    "$AST_BIN" -rx "pjsip show endpoints" 2>&1 || true
+    "$AST_BIN" -rx "module show like res_pjsip" 2>&1 || true
+    if [ -f /var/log/asterisk/messages ]; then
+      grep -iE 'error|pjsip|sorcery|reject|duplicate' /var/log/asterisk/messages 2>/dev/null | tail -30 || true
+    fi
+  else
+    echo "[asterisk] PJSIP ready — endpoint 1001 + AOR 1001 loaded"
+  fi
+else
+  echo "[asterisk] WARNING: Asterisk CLI not ready within 40s"
+fi
+
+wait "$ASTERISK_PID"
+exit $?
