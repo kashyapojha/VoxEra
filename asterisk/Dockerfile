@@ -1,6 +1,6 @@
 FROM andrius/asterisk:22
 
-ARG CONFIG_REVISION=6
+ARG CONFIG_REVISION=7
 RUN echo "asterisk config revision: ${CONFIG_REVISION}"
 
 RUN if command -v apk >/dev/null 2>&1; then \
@@ -11,13 +11,14 @@ RUN if command -v apk >/dev/null 2>&1; then \
       rm -rf /var/lib/apt/lists/*; \
     fi
 
-# Keep base modules.conf; only block chan_sip. Do NOT replace the whole file.
+# Patch base modules.conf — do not replace the whole file.
 RUN if [ -f /etc/asterisk/modules.conf ]; then \
       grep -q 'chan_sip' /etc/asterisk/modules.conf \
-        || printf '\n; VoxEra\nnoload => chan_sip.so\n' >> /etc/asterisk/modules.conf; \
+        || printf '\nnoload => chan_sip.so\n' >> /etc/asterisk/modules.conf; \
+      grep -q 'res_pjsip_config_wizard' /etc/asterisk/modules.conf \
+        || printf 'noload => res_pjsip_config_wizard.so\n' >> /etc/asterisk/modules.conf; \
     fi
 
-# Force PJSIP from static pjsip.conf — base image sorcery often uses empty realtime/astdb.
 COPY sorcery.conf /etc/asterisk/sorcery.conf
 COPY extconfig.conf /etc/asterisk/extconfig.conf
 COPY extensions.conf /etc/asterisk/extensions.conf
@@ -29,7 +30,7 @@ RUN set -e; \
     for mod in res_pjsip res_http_websocket res_pjsip_transport_websocket chan_pjsip; do \
       found="$(find /usr -name "${mod}.so" 2>/dev/null | head -1)"; \
       if [ -z "$found" ]; then \
-        echo "BUILD FAIL: ${mod}.so not found in base image"; \
+        echo "BUILD FAIL: ${mod}.so not found"; \
         exit 1; \
       fi; \
       echo "found ${mod}.so at ${found}"; \
