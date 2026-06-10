@@ -194,7 +194,7 @@ for i in $(seq 1 60); do
   AOR_OUT="$(docker_exec_asterisk asterisk -rx "pjsip show aor 1001-aor" || true)"
   EP_OUT="$(docker_exec_asterisk asterisk -rx "pjsip show endpoint 1001" || true)"
   if pjsip_cli_ok "$AOR_OUT" && printf '%s' "$AOR_OUT" | grep -q '1001-aor' \
-    && pjsip_cli_ok "$EP_OUT" && printf '%s' "$EP_OUT" | grep -q 'Endpoint.*1001\|1001';
+    && pjsip_cli_ok "$EP_OUT" && printf '%s' "$EP_OUT" | grep -q '1001'; then
     echo "Asterisk PJSIP ready (docker health=${AST_HEALTH})"
     break
   fi
