@@ -100,14 +100,14 @@ EOF
   cat > "${PJSIP_DIR}/pjsip.aor.conf" <<EOF
 [1001]
 type=aor
-max_contacts=5
+max_contacts=1
 remove_existing=yes
 qualify_frequency=0
 support_path=yes
 
 [1002]
 type=aor
-max_contacts=5
+max_contacts=1
 remove_existing=yes
 qualify_frequency=0
 support_path=yes
@@ -136,6 +136,9 @@ direct_media=no
 send_pai=yes
 trust_id_inbound=yes
 trust_id_outbound=yes
+outgoing_call_offer_pref=local
+incoming_call_offer_pref=local
+follow_early_media_fork=yes
 
 [1002]
 type=endpoint
@@ -159,9 +162,16 @@ direct_media=no
 send_pai=yes
 trust_id_inbound=yes
 trust_id_outbound=yes
+outgoing_call_offer_pref=local
+incoming_call_offer_pref=local
+follow_early_media_fork=yes
 EOF
 
-  : > "${PJSIP_DIR}/pjsip.domain.conf"
+  cat > "${PJSIP_DIR}/pjsip.domain.conf" <<EOF
+[${ASTERISK_EXTERNAL_IP}]
+type=domain
+domains=${ASTERISK_EXTERNAL_IP}
+EOF
   : > "${PJSIP_DIR}/pjsip.identify.conf"
   : > "${PJSIP_DIR}/pjsip.registration.conf"
 

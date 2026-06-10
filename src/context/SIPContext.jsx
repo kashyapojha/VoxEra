@@ -79,6 +79,7 @@ export const SIPProvider = ({ children }) => {
   const [incomingCall, setIncomingCall] = useState(null)
   const [incomingFrom, setIncomingFrom] = useState(null)
   const [pendingCaller, setPendingCaller] = useState(null)
+  const [sipInvitePending, setSipInvitePending] = useState(false)
   const [currentCall, setCurrentCall] = useState(null)
 
   const [rtpMetrics, setRtpMetrics] = useState(defaultMetrics)
@@ -188,27 +189,36 @@ export const SIPProvider = ({ children }) => {
     sock.emit('call_end', { id, status, duration: elapsed })
   }, [])
 
-  // Tell backend which SIP extension this browser owns (for incoming-call alerts).
-  // Re-announce on socket connect — SIP often registers before Socket.io connects.
+  // Only announce sip_online when this tab has a LIVE SIP WebSocket (can receive INVITE).
   useEffect(() => {
     if (!socket) return
 
     const announceSipOnline = () => {
       const ext = extensionRef.current
       const sock = socketRef.current
-      if (!sock || !isRegisteredRef.current || !ext) return
+      const ua = uaRef.current
+      if (!sock || !ext) return
+
+      const live = Boolean(ua?.isConnected?.() && ua?.isRegistered?.())
+      if (!live) {
+        sock.emit('sip_offline')
+        return
+      }
+
       sock.emit('sip_online', { extension: ext })
-      console.info(`[SIP] sip_online sent — ext ${ext} (socket ${sock.connected ? 'connected' : 'connecting'})`)
+      console.info(`[SIP] sip_online sent — ext ${ext} (live SIP WebSocket)`)
     }
 
     announceSipOnline()
     socket.on('connect', announceSipOnline)
+    const id = setInterval(announceSipOnline, 12000)
 
     return () => {
+      clearInterval(id)
       socket.off('connect', announceSipOnline)
       socket.emit('sip_offline')
     }
-  }, [socket, isRegistered, extension])
+  }, [socket, isRegistered, extension, uaLive])
 
   // Socket alert when another extension is calling this one (before/without SIP INVITE UI).
   useEffect(() => {
@@ -220,10 +230,11 @@ export const SIPProvider = ({ children }) => {
       if (!caller || !targetExt || targetExt !== myExt) return
       if (incomingCallRef.current) return
       setPendingCaller(caller)
+      setSipInvitePending(true)
       startIncomingRing()
       flashDocumentTitle(`Call from ${caller}`)
       notifyIncomingCall(caller)
-      console.info(`[SIP] Socket incoming alert — ${caller} → ext ${callee}`)
+      console.info(`[SIP] Socket incoming alert — ${caller} → ext ${callee} (waiting for SIP INVITE…)`)
     }
 
     const onCallEnded = () => {
@@ -238,6 +249,20 @@ export const SIPProvider = ({ children }) => {
       socket.off('call_end_broadcast', onCallEnded)
     }
   }, [socket])
+
+  // Socket alert arrived but SIP INVITE never showed — usually stale tab or Asterisk contact.
+  useEffect(() => {
+    if (!sipInvitePending || incomingCall) return undefined
+    const id = setTimeout(() => {
+      if (!incomingCallRef.current) {
+        console.warn('[SIP] SIP INVITE not received — re-register on this tab (Softphone → Unregister → Register)')
+        setRegistrationError(
+          'Call alert received but SIP session missing — Unregister then Register on this tab to receive calls'
+        )
+      }
+    }, 6000)
+    return () => clearTimeout(id)
+  }, [sipInvitePending, incomingCall])
 
   // Server-authoritative connected time — keeps both ends in sync
   useEffect(() => {
@@ -310,6 +335,7 @@ export const SIPProvider = ({ children }) => {
     setIncomingCall(null)
     setIncomingFrom(null)
     setPendingCaller(null)
+    setSipInvitePending(false)
     incomingCallRef.current = null
     stopCallTimer()
     stopStatsPolling()
@@ -471,6 +497,7 @@ export const SIPProvider = ({ children }) => {
         setIncomingCall(session)
         setIncomingFrom(caller)
         setPendingCaller(null)
+        setSipInvitePending(false)
         setCallStatus('incoming')
         startIncomingRing()
         flashDocumentTitle(`Call from ${caller}`)
@@ -602,6 +629,7 @@ export const SIPProvider = ({ children }) => {
       return
     }
     setPendingCaller(null)
+    setSipInvitePending(false)
   }, [incomingCall])
 
   const hangupCall = useCallback(() => {
@@ -686,6 +714,7 @@ export const SIPProvider = ({ children }) => {
     incomingCall,
     incomingFrom,
     pendingCaller,
+    sipInvitePending,
     peerConnection,
     makeCall,
     answerCall,

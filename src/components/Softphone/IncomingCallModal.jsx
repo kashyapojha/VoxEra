@@ -9,12 +9,21 @@ import { Phone, PhoneOff } from 'lucide-react'
 import { useSip } from '../../context/SIPContext'
 
 const IncomingCallModal = () => {
-  const { incomingCall, incomingFrom, pendingCaller, answerCall, rejectCall } = useSip()
+  const {
+    incomingCall,
+    incomingFrom,
+    pendingCaller,
+    sipInvitePending,
+    registrationError,
+    answerCall,
+    rejectCall,
+  } = useSip()
 
   if (!incomingCall && !pendingCaller) return null
 
   const caller = incomingFrom || pendingCaller || 'Unknown'
   const sipReady = Boolean(incomingCall)
+  const waitingForSip = Boolean(pendingCaller && !incomingCall)
 
   return (
     <AnimatePresence>
@@ -47,8 +56,19 @@ const IncomingCallModal = () => {
               <p className="text-4xl font-mono font-light text-white">{caller}</p>
               <p className="text-sm text-gray-400 mt-1">is calling you...</p>
               <p className="text-xs text-amber-400/90 mt-2">
-                {sipReady ? 'Click Answer to connect' : 'Connecting call — Answer will enable when ready'}
+                {sipReady
+                  ? 'Click Answer to connect'
+                  : 'Waiting for SIP — Answer enables when this tab receives the call'}
               </p>
+              {waitingForSip && sipInvitePending && (
+                <p className="text-xs text-red-300/90 mt-2 max-w-xs mx-auto">
+                  If Answer stays disabled: Softphone → Unregister → Register on{' '}
+                  <span className="font-mono">this tab only</span> (one tab per extension).
+                </p>
+              )}
+              {registrationError && waitingForSip && (
+                <p className="text-xs text-red-400/90 mt-2 max-w-xs mx-auto">{registrationError}</p>
+              )}
             </div>
 
             {/* Buttons */}
