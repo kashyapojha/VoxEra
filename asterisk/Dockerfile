@@ -1,6 +1,6 @@
 FROM andrius/asterisk:22
 
-ARG CONFIG_REVISION=1
+ARG CONFIG_REVISION=2
 RUN echo "asterisk config revision: ${CONFIG_REVISION}"
 
 # wget/curl for deploy diagnostics only; pjsip.conf is generated inline in docker-entrypoint.sh.

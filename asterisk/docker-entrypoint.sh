@@ -21,7 +21,9 @@ mkdir -p /var/run/asterisk /var/log/asterisk 2>/dev/null || true
 PJSIP_OUTPUT="/etc/asterisk/pjsip.conf"
 HTTP_OUTPUT="/etc/asterisk/http.conf"
 
-rm -f /etc/asterisk/pjsip.conf /etc/asterisk/pjsip_wizard.conf 2>/dev/null || true
+rm -f /etc/asterisk/pjsip.conf 2>/dev/null || true
+# Empty wizard file — silences "Unable to load pjsip_wizard.conf" from base image hooks.
+printf '[general]\n' > /etc/asterisk/pjsip_wizard.conf
 
 for conf in modules.conf sorcery.conf extconfig.conf extensions.conf rtp.conf; do
   src="/etc/asterisk/${conf}"
@@ -155,7 +157,7 @@ if ! grep -q '^aors=1001$' "$PJSIP_OUTPUT"; then
   exit 1
 fi
 
-for mod in res_http_websocket res_pjsip_transport_websocket; do
+for mod in res_sorcery res_pjsip res_http_websocket res_pjsip_transport_websocket; do
   if [ -f "/usr/lib/asterisk/modules/${mod}.so" ] || [ -f "/usr/lib64/asterisk/modules/${mod}.so" ]; then
     echo "[asterisk] module present: ${mod}.so"
   else
