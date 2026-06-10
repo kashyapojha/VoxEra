@@ -35,6 +35,22 @@ const sipUri = trimEnv(import.meta.env.VITE_SIP_URI ?? '')
 const sipPassword = trimEnv(import.meta.env.VITE_SIP_PASSWORD ?? '')
 const { extension: sipExtension, domain: sipDomain } = parseSipUri(sipUri)
 
+/**
+ * Asterisk demo PBX uses extension-as-password (1001→1001, 1002→1002).
+ * When the URI extension differs from the baked .env default, do not keep using VITE_SIP_PASSWORD.
+ */
+export function resolveSipPassword(extension, explicitPassword) {
+  const ext = trimEnv(extension)
+  const pass = trimEnv(explicitPassword)
+  if (!ext) {
+    return pass || sipPassword
+  }
+  if (!pass || pass === sipPassword || pass === sipExtension) {
+    return ext
+  }
+  return pass
+}
+
 /** Same-origin API when apiUrl is empty (nginx / Vite proxy). */
 export function apiUrlFor(path) {
   const base = apiUrl

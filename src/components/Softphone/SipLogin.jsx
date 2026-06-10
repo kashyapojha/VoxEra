@@ -7,7 +7,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Phone, Lock, User, Wifi, Loader } from 'lucide-react'
 import { useSip } from '../../context/SIPContext'
-import { env } from '../../config/env'
+import { env, resolveSipPassword } from '../../config/env'
 
 const SipLogin = () => {
   const {
@@ -24,9 +24,14 @@ const SipLogin = () => {
   const [ext, setExt] = useState(() => localStorage.getItem('sip_ext') || env.sipExtension || '')
   const [pass, setPass] = useState(() => {
     const initialExt = localStorage.getItem('sip_ext') || env.sipExtension || ''
-    // Baked .env password is for the default extension only (often 1001).
-    if (initialExt && env.sipExtension && initialExt !== env.sipExtension) return ''
-    return sipConfig.password || env.sipPassword || ''
+    const storedPass =
+      localStorage.getItem('sip_ext') === initialExt
+        ? sessionStorage.getItem('sip_pass')
+        : ''
+    return resolveSipPassword(
+      initialExt,
+      storedPass || sipConfig.password || env.sipPassword
+    )
   })
 
   const handleRegister = (e) => {
@@ -106,11 +111,9 @@ const SipLogin = () => {
                   type="text"
                   value={ext}
                   onChange={(e) => {
-                    const next = e.target.value
+                    const next = e.target.value.trim()
                     setExt(next)
-                    if (env.sipExtension && next !== env.sipExtension && pass === env.sipPassword) {
-                      setPass('')
-                    }
+                    setPass(resolveSipPassword(next, pass))
                   }}
                   placeholder="e.g. 1001"
                   className="w-full pl-9 pr-4 py-2.5 bg-white/5 border border-white/8 rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none focus:border-accent/50 transition-colors font-mono"

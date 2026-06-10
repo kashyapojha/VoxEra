@@ -13,7 +13,7 @@ import {
   destroyUA,
   SIP_DOMAIN,
 } from '../services/sipService'
-import { env, parseSipUri, trimEnv, hostFromUrl } from '../config/env'
+import { env, parseSipUri, trimEnv, hostFromUrl, resolveSipPassword } from '../config/env'
 import { useSocket } from './SocketContext'
 import { primeCallNotifications, stopAllCallAlerts } from '../utils/callAlerts'
 
@@ -64,7 +64,7 @@ export const SIPProvider = ({ children }) => {
   const [sipConfig, setSipConfig] = useState({
     websocket: env.sipWsUrl,
     uri: env.sipUri,
-    password: env.sipPassword,
+    password: resolveSipPassword(env.sipExtension, env.sipPassword),
   })
 
   const [callStatus, setCallStatus] = useState('idle')
@@ -250,11 +250,16 @@ export const SIPProvider = ({ children }) => {
 
   const register = useCallback((ext, password, domainOverride) => {
     const websocketUrl = trimEnv(sipConfig.websocket) || env.sipWsUrl
-    const pass = trimEnv(password) || trimEnv(sipConfig.password) || env.sipPassword
     let uri = trimEnv(sipConfig.uri) || env.sipUri
+    const trimmedExt = ext ? trimEnv(ext) : parseSipUri(uri).extension
+    const explicitPass =
+      trimEnv(password) ||
+      trimEnv(sipConfig.password) ||
+      (sessionStorage.getItem('sip_ext') === trimmedExt ? sessionStorage.getItem('sip_pass') : '') ||
+      ''
+    const pass = resolveSipPassword(trimmedExt, explicitPass)
 
     if (ext) {
-      const trimmedExt = trimEnv(ext)
       const configuredUri = trimEnv(sipConfig.uri) || env.sipUri
       // WebSocket host must match Asterisk default_realm / ASTERISK_EXTERNAL_IP.
       const domain =
@@ -293,7 +298,6 @@ export const SIPProvider = ({ children }) => {
     setConnectionStatus('connecting')
     setUaLive(false)
 
-    const trimmedExt = ext ? trimEnv(ext) : ''
     if (trimmedExt && pass) {
       localStorage.setItem('sip_ext', trimmedExt)
       sessionStorage.setItem('sip_pass', pass)

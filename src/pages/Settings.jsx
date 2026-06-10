@@ -5,7 +5,7 @@ import { User, Bell, Shield, Phone, Globe, Save, LogOut } from 'lucide-react'
 import GlassCard from '../components/UI/GlassCard'
 import { useSip } from '../context/SIPContext'
 import { useAuth } from '../context/AuthContext'
-import { env, parseSipUri, hostFromUrl } from '../config/env'
+import { env, parseSipUri, hostFromUrl, resolveSipPassword } from '../config/env'
 
 const Settings = () => {
   const {
@@ -28,12 +28,14 @@ const Settings = () => {
       if (saved) {
         const parsed = JSON.parse(saved)
         if (parsed?.sipConfig) {
+          const uri = env.sipUri || parsed.sipConfig?.uri || ''
+          const { extension: uriExt } = parseSipUri(uri)
           setSipConfig(prev => ({
             ...prev,
             ...parsed.sipConfig,
             ...(env.sipWsUrl ? { websocket: env.sipWsUrl } : {}),
             ...(env.sipUri ? { uri: env.sipUri } : {}),
-            ...(env.sipPassword ? { password: env.sipPassword } : {}),
+            password: resolveSipPassword(uriExt, parsed.sipConfig?.password || env.sipPassword),
           }))
         }
       }
@@ -43,6 +45,15 @@ const Settings = () => {
   }, [setSipConfig])
 
   const parsedSip = parseSipUri(sipConfig.uri || env.sipUri)
+
+  // Keep password aligned with SIP URI extension (1002 URI must not keep 1001 password).
+  useEffect(() => {
+    if (!parsedSip.extension) return
+    const resolved = resolveSipPassword(parsedSip.extension, sipConfig.password)
+    if (resolved !== sipConfig.password) {
+      setSipConfig((prev) => ({ ...prev, password: resolved }))
+    }
+  }, [parsedSip.extension, sipConfig.password, setSipConfig])
 
   const handleSIPRegister = () => {
     // SIP URI is the source of truth — stale localStorage sip_ext must not override it.
@@ -54,20 +65,10 @@ const Settings = () => {
 
     const storedExt = localStorage.getItem('sip_ext')
     const storedPass = sessionStorage.getItem('sip_pass')
-    let pass = (sipConfig.password || '').trim()
-    if (!pass && storedExt === ext && storedPass) {
-      pass = storedPass.trim()
-    }
-    if (!pass && ext === env.sipExtension) {
-      pass = (env.sipPassword || '').trim()
-    }
-    // Non-default extensions use extension-as-password on this PBX (1002 → 1002).
-    if (!pass && ext) {
-      pass = ext
-    }
-    if (ext && env.sipExtension && ext !== env.sipExtension && pass === env.sipPassword) {
-      pass = ext
-    }
+    const explicitPass =
+      (sipConfig.password || '').trim() ||
+      (storedExt === ext && storedPass ? storedPass.trim() : '')
+    const pass = resolveSipPassword(ext, explicitPass)
 
     const domain =
       hostFromUrl(sipConfig.websocket || env.sipWsUrl) ||
@@ -170,7 +171,15 @@ const Settings = () => {
                     <input
                       type="text"
                       value={sipConfig.uri}
-                      onChange={(e) => setSipConfig({ ...sipConfig, uri: e.target.value })}
+                      onChange={(e) => {
+                        const uri = e.target.value
+                        const { extension: uriExt } = parseSipUri(uri)
+                        setSipConfig((prev) => ({
+                          ...prev,
+                          uri,
+                          password: uriExt ? uriExt : prev.password,
+                        }))
+                      }}
                       placeholder="sip:1001@13.62.237.148"
                       className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-accent/50 transition-colors font-mono text-sm"
                     />
@@ -187,12 +196,17 @@ const Settings = () => {
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">
                       Password
+                      {parsedSip.extension ? (
+                        <span className="text-gray-500 font-normal">
+                          {' '}(for extension <span className="font-mono">{parsedSip.extension}</span>)
+                        </span>
+                      ) : null}
                     </label>
                     <input
                       type="password"
                       value={sipConfig.password}
                       onChange={(e) => setSipConfig({ ...sipConfig, password: e.target.value })}
-                      placeholder="••••••••"
+                      placeholder={parsedSip.extension || '••••••••'}
                       className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-accent/50 transition-colors"
                     />
                   </div>
