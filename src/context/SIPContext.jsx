@@ -377,8 +377,11 @@ export const SIPProvider = ({ children }) => {
         emitCallEnd(session || currentCallRef.current, cause === 'Rejected' ? 'missed' : 'failed')
         resetCallState()
       },
-      onPeerConnection: (pc) => {
+      onPeerConnection: (pc, session) => {
         setPeerConnection(pc)
+        if (session?.direction === 'outgoing') {
+          setCallStatus((prev) => (prev === 'calling' ? 'ringing' : prev))
+        }
       },
     }
 

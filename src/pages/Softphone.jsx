@@ -12,7 +12,6 @@ import GlassCard from '../components/UI/GlassCard'
 import DialPad from '../components/Softphone/DialPad'
 import CallControls from '../components/Softphone/CallControls'
 import CallTimer from '../components/Softphone/CallTimer'
-import IncomingCallModal from '../components/Softphone/IncomingCallModal'
 import SipLogin from '../components/Softphone/SipLogin'
 import { useSip } from '../hooks/useSip'
 import { useWebRTCStats } from '../hooks/useWebRTCStats'
@@ -63,12 +62,6 @@ const Softphone = () => {
 
   return (
     <>
-      {/* Incoming call modal — always mounted */}
-      <IncomingCallModal />
-
-      {/* Hidden audio element for remote stream */}
-      <audio id="remoteAudio" autoPlay playsInline style={{ display: 'none' }} />
-
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

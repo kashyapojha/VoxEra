@@ -85,21 +85,33 @@ export function useWebRTCStats(session) {
       return
     }
 
-    // Get RTCPeerConnection from JsSIP session
-    const pc = session.connection
-    if (!pc) {
-      console.warn('[useWebRTCStats] No RTCPeerConnection on session')
-      return
+    let cancelled = false
+    let waitTimer = null
+
+    const startPolling = (pc) => {
+      if (cancelled || !pc) return
+      console.info('[useWebRTCStats] Starting polling — connection state:', pc.connectionState)
+      pollStats(pc)
+      intervalRef.current = setInterval(() => pollStats(pc), POLL_INTERVAL_MS)
     }
 
-    console.info('[useWebRTCStats] Starting polling — connection state:', pc.connectionState)
+    const pc = session.connection
+    if (pc) {
+      startPolling(pc)
+    } else {
+      console.info('[useWebRTCStats] Waiting for RTCPeerConnection on session…')
+      waitTimer = setInterval(() => {
+        const livePc = session.connection
+        if (livePc) {
+          clearInterval(waitTimer)
+          startPolling(livePc)
+        }
+      }, 200)
+    }
 
-    // Start polling immediately and then every POLL_INTERVAL_MS
-    pollStats(pc)
-    intervalRef.current = setInterval(() => pollStats(pc), POLL_INTERVAL_MS)
-
-    // Cleanup on session change or component unmount
     return () => {
+      cancelled = true
+      if (waitTimer) clearInterval(waitTimer)
       stopPolling()
       setStats(defaultStats)
       setHistory([])

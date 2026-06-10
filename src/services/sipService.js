@@ -22,6 +22,116 @@ if (!SIP_WS) {
   console.error('[SIP] VITE_SIP_WS_URL is not set — WebRTC will not connect')
 }
 
+const wiredSessions = new WeakSet()
+const wiredPeerConnections = new WeakSet()
+
+const defaultCallOptions = {
+  mediaConstraints: { audio: true, video: false },
+  pcConfig: {
+    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+  },
+  sessionTimersExpires: 0,
+}
+
+function playRemoteAudio(stream) {
+  if (!stream) return
+  const audioEl = document.getElementById('remoteAudio')
+  if (!audioEl) return
+  audioEl.srcObject = stream
+  audioEl.play().catch((err) => {
+    console.warn('[SIP] Audio autoplay blocked:', err)
+    document.addEventListener('click', () => audioEl.play(), { once: true })
+  })
+}
+
+function bindPeerConnection(pc, session, callbacks) {
+  if (!pc || wiredPeerConnections.has(pc)) return
+  wiredPeerConnections.add(pc)
+
+  const onMediaReady = () => {
+    callbacks.onMediaConnected?.(session)
+  }
+
+  pc.addEventListener('connectionstatechange', () => {
+    console.info(`[SIP] PeerConnection connectionState — ${pc.connectionState}`)
+    if (pc.connectionState === 'connected') onMediaReady()
+  })
+
+  pc.addEventListener('iceconnectionstatechange', () => {
+    console.info(`[SIP] PeerConnection iceConnectionState — ${pc.iceConnectionState}`)
+    if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+      onMediaReady()
+    }
+  })
+
+  pc.addEventListener('track', (trackEvent) => {
+    console.info('[SIP] Remote track received:', trackEvent.track.kind)
+    if (trackEvent.streams?.[0]) playRemoteAudio(trackEvent.streams[0])
+    onMediaReady()
+  })
+
+  if (pc.connectionState === 'connected') onMediaReady()
+  if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+    onMediaReady()
+  }
+
+  callbacks.onPeerConnection?.(pc, session)
+}
+
+function attachSessionHandlers(session, callbacks) {
+  if (!session || wiredSessions.has(session)) return
+  wiredSessions.add(session)
+
+  session.on('progress', (e) => {
+    const code = e.response?.status_code
+    console.info(`[SIP] Session progress — ${code}`)
+    callbacks.onProgress?.(session, code)
+  })
+
+  session.on('accepted', () => {
+    console.info('[SIP] Session accepted (200 OK)')
+    callbacks.onAccepted?.(session)
+  })
+
+  session.on('confirmed', () => {
+    console.info('[SIP] Session confirmed — ACK complete')
+    callbacks.onConfirmed?.(session)
+  })
+
+  session.on('ended', (e) => {
+    console.info('[SIP] Session ended', e.cause)
+    callbacks.onEnded?.(session, e.cause)
+  })
+
+  session.on('failed', (e) => {
+    const code = e.message?.status_code || e.response?.status_code
+    console.error('[SIP] Session failed', e.cause, code ? `SIP ${code}` : '')
+    callbacks.onFailed?.(session, e.cause)
+  })
+
+  session.on('getusermediafailed', (e) => {
+    console.error('[SIP] getUserMedia failed', e)
+    callbacks.onFailed?.(session, 'getUserMediaFailed')
+  })
+
+  session.on('peerconnection', (e) => {
+    console.info('[SIP] PeerConnection created')
+    bindPeerConnection(e.peerconnection, session, callbacks)
+    if (session.direction === 'outgoing') {
+      callbacks.onProgress?.(session, 183)
+    }
+  })
+
+  // JsSIP may create the PC before the peerconnection event — attach immediately.
+  if (session.connection) {
+    console.info('[SIP] PeerConnection already present on session')
+    bindPeerConnection(session.connection, session, callbacks)
+    if (session.direction === 'outgoing') {
+      callbacks.onProgress?.(session, 183)
+    }
+  }
+}
+
 /**
  * Build JsSIP UA from env defaults with optional overrides (Settings UI).
  *
@@ -68,7 +178,7 @@ export function createUA(callbacks, overrides = {}) {
     password,
     register:           true,
     session_timers:     false,
-    register_expires:   300,
+    register_expires:   600,
     connection_recovery_min_interval: 2,
     connection_recovery_max_interval: 30,
   }
@@ -154,6 +264,7 @@ export function createUA(callbacks, overrides = {}) {
     const originator = data.originator
 
     console.info(`[SIP] New session — originator: ${originator}`)
+    attachSessionHandlers(session, callbacks)
 
     if (originator === 'remote') {
       const caller = session.remote_identity?.uri?.user || 'Unknown'
@@ -164,60 +275,6 @@ export function createUA(callbacks, overrides = {}) {
       console.info(`[SIP] Outgoing call to ${callee}`)
       callbacks.onOutgoingCall?.(session, callee)
     }
-
-    session.on('progress', (e) => {
-      console.info(`[SIP] Session progress — ${e.response?.status_code}`)
-      callbacks.onProgress?.(session, e.response?.status_code)
-    })
-
-    session.on('accepted', () => {
-      console.info('[SIP] Session accepted (200 OK)')
-      callbacks.onAccepted?.(session)
-    })
-
-    session.on('confirmed', () => {
-      console.info('[SIP] Session confirmed — call connected')
-      callbacks.onConfirmed?.(session)
-    })
-
-    session.on('ended', (e) => {
-      console.info('[SIP] Session ended', e.cause)
-      callbacks.onEnded?.(session, e.cause)
-    })
-
-    session.on('failed', (e) => {
-      console.error('[SIP] Session failed', e.cause)
-      callbacks.onFailed?.(session, e.cause)
-    })
-
-    session.on('peerconnection', (e) => {
-      const pc = e.peerconnection
-      console.info('[SIP] PeerConnection created')
-
-      pc.addEventListener('connectionstatechange', () => {
-        console.info(`[SIP] PeerConnection state — ${pc.connectionState}`)
-        if (pc.connectionState === 'connected') {
-          callbacks.onMediaConnected?.(session)
-        }
-      })
-
-      pc.addEventListener('track', (trackEvent) => {
-        console.info('[SIP] Remote track received:', trackEvent.track.kind)
-        callbacks.onMediaConnected?.(session)
-        if (trackEvent.streams && trackEvent.streams[0]) {
-          const audioEl = document.getElementById('remoteAudio')
-          if (audioEl) {
-            audioEl.srcObject = trackEvent.streams[0]
-            audioEl.play().catch((err) => {
-              console.warn('[SIP] Audio autoplay blocked:', err)
-              document.addEventListener('click', () => audioEl.play(), { once: true })
-            })
-          }
-        }
-      })
-
-      callbacks.onPeerConnection?.(pc, session)
-    })
   })
 
   return ua
@@ -229,26 +286,14 @@ export function makeCall(ua, target, domain) {
   const callDomain = domain || hostFromUrl(SIP_WS) || SIP_DOMAIN
   const targetURI = `sip:${target}@${callDomain}`
 
-  const options = {
-    mediaConstraints: { audio: true, video: false },
-    pcConfig: {
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-    },
-    sessionTimersExpires: 0,
-  }
-
   console.info(`[SIP] Calling ${targetURI}`)
-  return ua.call(targetURI, options)
+  const session = ua.call(targetURI, { ...defaultCallOptions })
+  return session
 }
 
 export function answerCall(session) {
   if (!session) return
-  session.answer({
-    mediaConstraints: { audio: true, video: false },
-    pcConfig: {
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-    },
-  })
+  session.answer({ ...defaultCallOptions })
   console.info('[SIP] Call answered')
 }
 
