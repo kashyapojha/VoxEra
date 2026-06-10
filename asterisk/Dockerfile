@@ -1,6 +1,6 @@
 FROM andrius/asterisk:22
 
-ARG CONFIG_REVISION=5
+ARG CONFIG_REVISION=6
 RUN echo "asterisk config revision: ${CONFIG_REVISION}"
 
 RUN if command -v apk >/dev/null 2>&1; then \
@@ -11,12 +11,19 @@ RUN if command -v apk >/dev/null 2>&1; then \
       rm -rf /var/lib/apt/lists/*; \
     fi
 
-# Keep the base image modules.conf/sorcery.conf — replacing them broke PJSIP object loading.
-# Only ensure chan_sip stays unloaded (WebSocket REGISTER must hit res_pjsip).
+# Keep base modules.conf; only block chan_sip. Do NOT replace the whole file.
 RUN if [ -f /etc/asterisk/modules.conf ]; then \
       grep -q 'chan_sip' /etc/asterisk/modules.conf \
         || printf '\n; VoxEra\nnoload => chan_sip.so\n' >> /etc/asterisk/modules.conf; \
     fi
+
+# Force PJSIP from static pjsip.conf — base image sorcery often uses empty realtime/astdb.
+COPY sorcery.conf /etc/asterisk/sorcery.conf
+COPY extconfig.conf /etc/asterisk/extconfig.conf
+COPY extensions.conf /etc/asterisk/extensions.conf
+COPY rtp.conf /etc/asterisk/rtp.conf
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+COPY healthcheck.sh /usr/local/bin/asterisk-healthcheck.sh
 
 RUN set -e; \
     for mod in res_pjsip res_http_websocket res_pjsip_transport_websocket chan_pjsip; do \
@@ -27,11 +34,6 @@ RUN set -e; \
       fi; \
       echo "found ${mod}.so at ${found}"; \
     done
-
-COPY extensions.conf /etc/asterisk/extensions.conf
-COPY rtp.conf /etc/asterisk/rtp.conf
-COPY docker-entrypoint.sh /docker-entrypoint.sh
-COPY healthcheck.sh /usr/local/bin/asterisk-healthcheck.sh
 
 RUN rm -f /etc/asterisk/pjsip.conf /etc/asterisk/pjsip_wizard.conf 2>/dev/null || true && \
     mkdir -p /var/log/asterisk /var/run/asterisk && \

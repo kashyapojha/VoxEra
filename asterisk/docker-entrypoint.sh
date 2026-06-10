@@ -21,11 +21,9 @@ mkdir -p /var/run/asterisk /var/log/asterisk 2>/dev/null || true
 PJSIP_OUTPUT="/etc/asterisk/pjsip.conf"
 HTTP_OUTPUT="/etc/asterisk/http.conf"
 
-rm -f /etc/asterisk/pjsip.conf 2>/dev/null || true
-# Empty wizard file — silences "Unable to load pjsip_wizard.conf" from base image hooks.
-printf '[general]\n' > /etc/asterisk/pjsip_wizard.conf
+rm -f /etc/asterisk/pjsip.conf /etc/asterisk/pjsip_wizard.conf 2>/dev/null || true
 
-for conf in extensions.conf rtp.conf; do
+for conf in sorcery.conf extconfig.conf extensions.conf rtp.conf; do
   src="/etc/asterisk/${conf}"
   if [ -f "$src" ]; then
     strip_crlf < "$src" > "/tmp/${conf}"
@@ -172,8 +170,12 @@ for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
 done
 
 if [ "$cli_ready" -eq 1 ]; then
+  echo "[asterisk] sorcery endpoint source: $(grep '^endpoint=' /etc/asterisk/sorcery.conf 2>/dev/null | head -1)"
   "$AST_BIN" -rx "module show like res_pjsip" 2>&1 | head -5 || true
+  "$AST_BIN" -rx "module reload res_pjsip.so" 2>&1 | tail -2 || true
   "$AST_BIN" -rx "pjsip reload" 2>&1 | tail -3 || true
+  sleep 3
+  "$AST_BIN" -rx "pjsip reload" 2>&1 | tail -2 || true
   sleep 2
   AOR_OUT="$("$AST_BIN" -rx "pjsip show aor 1001" 2>&1)" || AOR_OUT=""
   EP_OUT="$("$AST_BIN" -rx "pjsip show endpoint 1001" 2>&1)" || EP_OUT=""
