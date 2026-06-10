@@ -110,7 +110,13 @@ function attachSessionHandlers(session, callbacks) {
 
   session.on('failed', (e) => {
     const code = e.message?.status_code || e.response?.status_code
-    console.error('[SIP] Session failed', e.cause, code ? `SIP ${code}` : '')
+    const dir = session.direction || 'unknown'
+    console.error(
+      `[SIP] Session failed (${dir})`,
+      e.cause,
+      code ? `SIP ${code}` : '',
+      session.remote_identity?.uri?.user ? `peer ${session.remote_identity.uri.user}` : ''
+    )
     callbacks.onFailed?.(session, e.cause)
   })
 

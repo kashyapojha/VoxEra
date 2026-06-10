@@ -15,7 +15,13 @@ import {
 } from '../services/sipService'
 import { env, parseSipUri, trimEnv, hostFromUrl, resolveSipPassword } from '../config/env'
 import { useSocket } from './SocketContext'
-import { primeCallNotifications, stopAllCallAlerts } from '../utils/callAlerts'
+import {
+  primeCallNotifications,
+  stopAllCallAlerts,
+  startIncomingRing,
+  flashDocumentTitle,
+  notifyIncomingCall,
+} from '../utils/callAlerts'
 
 const SIPContext = createContext(null)
 
@@ -71,6 +77,7 @@ export const SIPProvider = ({ children }) => {
   const [callDuration, setCallDuration] = useState(0)
   const [incomingCall, setIncomingCall] = useState(null)
   const [incomingFrom, setIncomingFrom] = useState(null)
+  const [pendingCaller, setPendingCaller] = useState(null)
   const [currentCall, setCurrentCall] = useState(null)
 
   const [rtpMetrics, setRtpMetrics] = useState(defaultMetrics)
@@ -90,6 +97,7 @@ export const SIPProvider = ({ children }) => {
   const disconnectTimerRef = useRef(null)
   const autoRegisterAttemptedRef = useRef(false)
   const extensionRef = useRef(extension)
+  const incomingCallRef = useRef(null)
 
   useEffect(() => {
     extensionRef.current = extension
@@ -149,6 +157,43 @@ export const SIPProvider = ({ children }) => {
       ? Math.floor((Date.now() - callStartTimeRef.current) / 1000)
       : 0
     socket.emit('call_end', { id, status, duration: elapsed })
+  }, [socket])
+
+  // Tell backend which SIP extension this browser owns (for incoming-call alerts).
+  useEffect(() => {
+    if (!socket) return
+    if (isRegistered && extension) {
+      socket.emit('sip_online', { extension })
+      return () => socket.emit('sip_offline')
+    }
+    socket.emit('sip_offline')
+  }, [socket, isRegistered, extension])
+
+  // Socket alert when another extension is calling this one (before/without SIP INVITE UI).
+  useEffect(() => {
+    if (!socket) return
+
+    const onIncomingAlert = ({ caller, callee }) => {
+      if (!caller || callee !== extensionRef.current) return
+      if (incomingCallRef.current) return
+      setPendingCaller(caller)
+      startIncomingRing()
+      flashDocumentTitle(`Call from ${caller}`)
+      notifyIncomingCall(caller)
+      console.info(`[SIP] Socket incoming alert — ${caller} → ext ${callee}`)
+    }
+
+    const onCallEnded = () => {
+      setPendingCaller(null)
+      stopAllCallAlerts()
+    }
+
+    socket.on('sip_incoming_alert', onIncomingAlert)
+    socket.on('call_end_broadcast', onCallEnded)
+    return () => {
+      socket.off('sip_incoming_alert', onIncomingAlert)
+      socket.off('call_end_broadcast', onCallEnded)
+    }
   }, [socket])
 
   // Server-authoritative connected time — keeps both ends in sync
@@ -221,6 +266,8 @@ export const SIPProvider = ({ children }) => {
     setCurrentCall(null)
     setIncomingCall(null)
     setIncomingFrom(null)
+    setPendingCaller(null)
+    incomingCallRef.current = null
     stopCallTimer()
     stopStatsPolling()
     setPeerConnection(null)
@@ -234,6 +281,8 @@ export const SIPProvider = ({ children }) => {
     setCallStatus('connected')
     setIncomingCall(null)
     setIncomingFrom(null)
+    setPendingCaller(null)
+    incomingCallRef.current = null
     emitCallEstablish(session)
 
     const pc = session.connection
@@ -375,9 +424,15 @@ export const SIPProvider = ({ children }) => {
         setRegistrationError(msg)
       },
       onIncomingCall: (session, caller) => {
+        incomingCallRef.current = session
         setIncomingCall(session)
         setIncomingFrom(caller)
+        setPendingCaller(null)
         setCallStatus('incoming')
+        startIncomingRing()
+        flashDocumentTitle(`Call from ${caller}`)
+        notifyIncomingCall(caller)
+        console.info(`[SIP] Incoming call UI — ${caller} → ext ${extensionRef.current}`)
         emitCallStart(session, {
           caller,
           callee: extensionRef.current || 'Unknown',
@@ -394,20 +449,29 @@ export const SIPProvider = ({ children }) => {
           direction: 'outbound',
           status: 'calling',
         })
+        if (socket) {
+          const id = getSessionCallId(session)
+          socket.emit('call_ringing', {
+            id,
+            caller: extensionRef.current || 'Unknown',
+            callee,
+          })
+        }
       },
       onProgress: (session) => {
         setCallStatus((prev) => (prev === 'incoming' ? prev : 'ringing'))
         if (socket && session) {
           const id = getSessionCallId(session)
-          if (id) {
-            socket.emit('call_start', {
-              id,
-              caller: extensionRef.current || 'Unknown',
-              callee: session.remote_identity?.uri?.user || 'Unknown',
-              direction: session.direction === 'incoming' ? 'inbound' : 'outbound',
-              status: 'ringing',
-            })
-          }
+          if (!id) return
+          const remote = session.remote_identity?.uri?.user || 'Unknown'
+          const local = extensionRef.current || 'Unknown'
+          socket.emit('call_start', {
+            id,
+            caller: session.direction === 'incoming' ? remote : local,
+            callee: session.direction === 'incoming' ? local : remote,
+            direction: session.direction === 'incoming' ? 'inbound' : 'outbound',
+            status: 'ringing',
+          })
         }
       },
       onAccepted: (session) => markCallConnected(session),
@@ -484,17 +548,19 @@ export const SIPProvider = ({ children }) => {
   }, [isRegistered, callStatus])
 
   const answerCall = useCallback(() => {
-    if (!incomingCall) return
+    const session = incomingCallRef.current || incomingCall
+    if (!session) return
     stopAllCallAlerts()
-    sipAnswerCall(incomingCall)
-    setCurrentCall(incomingCall)
+    sipAnswerCall(session)
+    setCurrentCall(session)
     // connected state set by onAccepted / onConfirmed / onMediaConnected
   }, [incomingCall])
 
   const rejectCall = useCallback(() => {
-    if (!incomingCall) return
+    const session = incomingCallRef.current || incomingCall
+    if (!session) return
     stopAllCallAlerts()
-    terminateSession(incomingCall)
+    terminateSession(session)
   }, [incomingCall])
 
   const hangupCall = useCallback(() => {
@@ -577,6 +643,7 @@ export const SIPProvider = ({ children }) => {
     currentCall,
     incomingCall,
     incomingFrom,
+    pendingCaller,
     peerConnection,
     makeCall,
     answerCall,

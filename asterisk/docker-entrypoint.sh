@@ -100,15 +100,15 @@ EOF
   cat > "${PJSIP_DIR}/pjsip.aor.conf" <<EOF
 [1001]
 type=aor
-max_contacts=10
-remove_existing=no
+max_contacts=5
+remove_existing=yes
 qualify_frequency=0
 support_path=yes
 
 [1002]
 type=aor
-max_contacts=10
-remove_existing=no
+max_contacts=5
+remove_existing=yes
 qualify_frequency=0
 support_path=yes
 EOF

@@ -324,6 +324,35 @@ io.on('connection', async (socket) => {
   socket.emit('active_calls_update', Array.from(activeCalls.values()).map(enrichActiveCall))
   socket.emit('call_history_update', calls.slice(0, 50))
 
+  socket.on('sip_online', (payload) => {
+    const extension = String(payload?.extension || '').trim()
+    if (!extension) return
+    socket.join(`ext:${extension}`)
+    socket.data.sipExtension = extension
+    console.info(`[SOCKET] SIP online: ext ${extension} (${socket.id})`)
+  })
+
+  socket.on('sip_offline', () => {
+    const extension = socket.data?.sipExtension
+    if (extension) {
+      socket.leave(`ext:${extension}`)
+      console.info(`[SOCKET] SIP offline: ext ${extension} (${socket.id})`)
+    }
+    delete socket.data.sipExtension
+  })
+
+  socket.on('call_ringing', (payload) => {
+    const callee = String(payload?.callee || '').trim()
+    const caller = String(payload?.caller || 'Unknown').trim()
+    if (!callee) return
+    io.to(`ext:${callee}`).emit('sip_incoming_alert', {
+      id: getCallId(payload),
+      caller,
+      callee,
+    })
+    console.info(`[SOCKET] Ring alert: ${caller} -> ext ${callee}`)
+  })
+
   socket.on('call_start', (payload) => {
     const id = getCallId(payload)
     if (!id) return
@@ -344,6 +373,14 @@ io.on('connection', async (socket) => {
       if (payload.caller && payload.caller !== 'Me') callObj.caller = payload.caller
       if (payload.callee && payload.callee !== 'Me') callObj.callee = payload.callee
       callObj.status = payload.status || callObj.status
+    }
+
+    if (callObj.direction === 'outbound' && callObj.callee && callObj.callee !== 'Unknown') {
+      io.to(`ext:${callObj.callee}`).emit('sip_incoming_alert', {
+        id,
+        caller: callObj.caller,
+        callee: callObj.callee,
+      })
     }
 
     console.info(`[SOCKET] Call Start: ${callObj.caller} -> ${callObj.callee} [${callObj.status}]`)
@@ -415,6 +452,7 @@ io.on('connection', async (socket) => {
 
     broadcastActiveCalls()
     io.emit('call_history_update', calls.slice(0, 50))
+    io.emit('call_end_broadcast', { id, callee: callObj.callee, caller: callObj.caller })
 
     const totalCalls = calls.length
     const completedCalls = calls.filter((c) => c.status === 'completed').length

@@ -19,7 +19,7 @@ export default function CallAlerts() {
 
   // Incoming ring + notification
   useEffect(() => {
-    if (incomingCall && callStatus === 'incoming') {
+    if (incomingCall) {
       const caller = incomingFrom || 'Unknown'
       startIncomingRing()
       flashDocumentTitle(`Call from ${caller}`)
