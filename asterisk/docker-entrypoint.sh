@@ -59,6 +59,7 @@ realm=${ASTERISK_EXTERNAL_IP}
 type=aor
 max_contacts=5
 remove_existing=yes
+support_path=yes
 
 [1001]
 type=endpoint
@@ -87,6 +88,7 @@ realm=${ASTERISK_EXTERNAL_IP}
 type=aor
 max_contacts=5
 remove_existing=yes
+support_path=yes
 
 [1002]
 type=endpoint

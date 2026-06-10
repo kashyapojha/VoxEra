@@ -1,6 +1,6 @@
 FROM andrius/asterisk:22
 
-ARG CONFIG_REVISION=8
+ARG CONFIG_REVISION=9
 RUN echo "asterisk config revision: ${CONFIG_REVISION}"
 
 RUN if command -v apk >/dev/null 2>&1; then \
