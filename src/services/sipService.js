@@ -114,8 +114,9 @@ export function createUA(callbacks, overrides = {}) {
 
   ua.on('disconnected', (e) => {
     clearRegisterTimeout()
-    console.warn(`[SIP] WebSocket disconnected — ${uri}`, e.cause)
-    callbacks.onDisconnected?.(e.cause)
+    const cause = e?.cause ?? e?.error?.cause ?? e?.error ?? 'unknown'
+    console.warn(`[SIP] WebSocket disconnected — ${uri}`, cause)
+    callbacks.onDisconnected?.(cause)
   })
 
   ua.on('registered', () => {
@@ -264,7 +265,9 @@ export function terminateSession(session) {
 export function destroyUA(ua) {
   if (!ua) return
   try {
-    ua.stop()
+    if (ua.isConnected?.() || ua.isRegistered?.()) {
+      ua.stop()
+    }
     console.info('[SIP] UA stopped')
   } catch (e) {
     console.warn('[SIP] UA stop error:', e)

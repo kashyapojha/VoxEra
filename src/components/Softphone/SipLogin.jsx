@@ -22,7 +22,12 @@ const SipLogin = () => {
   } = useSip()
 
   const [ext, setExt] = useState(() => localStorage.getItem('sip_ext') || env.sipExtension || '')
-  const [pass, setPass] = useState(() => sipConfig.password || env.sipPassword || '')
+  const [pass, setPass] = useState(() => {
+    const initialExt = localStorage.getItem('sip_ext') || env.sipExtension || ''
+    // Baked .env password is for the default extension only (often 1001).
+    if (initialExt && env.sipExtension && initialExt !== env.sipExtension) return ''
+    return sipConfig.password || env.sipPassword || ''
+  })
 
   const handleRegister = (e) => {
     e.preventDefault()
@@ -91,7 +96,13 @@ const SipLogin = () => {
                 <input
                   type="text"
                   value={ext}
-                  onChange={e => setExt(e.target.value)}
+                  onChange={(e) => {
+                    const next = e.target.value
+                    setExt(next)
+                    if (env.sipExtension && next !== env.sipExtension && pass === env.sipPassword) {
+                      setPass('')
+                    }
+                  }}
                   placeholder="e.g. 1001"
                   className="w-full pl-9 pr-4 py-2.5 bg-white/5 border border-white/8 rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none focus:border-accent/50 transition-colors font-mono"
                   disabled={isRegistering}
@@ -117,6 +128,12 @@ const SipLogin = () => {
                 />
               </div>
             </div>
+
+            {env.sipExtension && ext && ext !== env.sipExtension && (
+              <p className="text-xs text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+                Extension {ext} uses its own password (e.g. {ext} → password <span className="font-mono">{ext}</span>), not the default {env.sipExtension} password.
+              </p>
+            )}
 
             {registrationError && (
               <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">

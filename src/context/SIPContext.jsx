@@ -81,11 +81,18 @@ export const SIPProvider = ({ children }) => {
   const callStartTimeRef = useRef(null)
   const currentCallIdRef = useRef(null)
   const connectedSessionRef = useRef(null)
+  const currentCallRef = useRef(null)
+  const registerSignatureRef = useRef('')
+  const registerInProgressRef = useRef(false)
   const extensionRef = useRef(extension)
 
   useEffect(() => {
     extensionRef.current = extension
   }, [extension])
+
+  useEffect(() => {
+    currentCallRef.current = currentCall
+  }, [currentCall])
 
   const stopCallTimer = useCallback(() => {
     clearInterval(callTimerRef.current)
@@ -257,8 +264,24 @@ export const SIPProvider = ({ children }) => {
       return
     }
 
-    if (uaRef.current) destroyUA(uaRef.current)
+    const signature = `${uri}|${pass}`
+    const existingUa = uaRef.current
+    if (
+      existingUa
+      && registerSignatureRef.current === signature
+      && (existingUa.isRegistered?.() || registerInProgressRef.current)
+    ) {
+      console.info('[SIP] Already registered or registering with same credentials — skip')
+      return
+    }
 
+    if (existingUa) {
+      destroyUA(existingUa)
+      uaRef.current = null
+    }
+
+    registerSignatureRef.current = signature
+    registerInProgressRef.current = true
     setIsRegistering(true)
     setRegistrationError(null)
     setConnectionStatus('connecting')
@@ -266,26 +289,33 @@ export const SIPProvider = ({ children }) => {
     const callbacks = {
       onConnecting: () => setConnectionStatus('connecting'),
       onConnected: () => setConnectionStatus('connected'),
-      onDisconnected: () => {
-        setConnectionStatus('disconnected')
-        setIsRegistered(false)
+      onDisconnected: (cause) => {
+        // JsSIP auto-reconnects — do not clear isRegistered or destroy UA here.
+        console.warn('[SIP] WebSocket dropped, JsSIP reconnecting…', cause || 'no cause')
+        setConnectionStatus('connecting')
       },
       onRegistered: (registeredExt) => {
+        registerInProgressRef.current = false
         setIsRegistered(true)
         setIsRegistering(false)
+        setConnectionStatus('connected')
         setExtension(registeredExt)
         setRegistrationError(null)
         localStorage.setItem('sip_ext', registeredExt)
         localStorage.setItem('sip_registered', 'true')
       },
       onUnregistered: () => {
+        registerInProgressRef.current = false
         setIsRegistered(false)
         setIsRegistering(false)
+        setConnectionStatus('disconnected')
         localStorage.removeItem('sip_registered')
       },
       onRegistrationFailed: (detail) => {
+        registerInProgressRef.current = false
         setIsRegistered(false)
         setIsRegistering(false)
+        setConnectionStatus('disconnected')
         let msg = `Registration failed: ${detail}`
         if (String(detail).startsWith('404')) {
           msg += ' — Registrar AOR mismatch (server needs aors=1001 and AOR object 1001 loaded).'
@@ -340,11 +370,11 @@ export const SIPProvider = ({ children }) => {
       onConfirmed: (session) => markCallConnected(session),
       onMediaConnected: (session) => markCallConnected(session),
       onEnded: (session) => {
-        emitCallEnd(session || currentCall, 'completed')
+        emitCallEnd(session || currentCallRef.current, 'completed')
         resetCallState()
       },
       onFailed: (session, cause) => {
-        emitCallEnd(session || currentCall, cause === 'Rejected' ? 'missed' : 'failed')
+        emitCallEnd(session || currentCallRef.current, cause === 'Rejected' ? 'missed' : 'failed')
         resetCallState()
       },
       onPeerConnection: (pc) => {
@@ -361,13 +391,14 @@ export const SIPProvider = ({ children }) => {
     markCallConnected,
     resetCallState,
     socket,
-    currentCall,
     sipConfig.websocket,
     sipConfig.uri,
     sipConfig.password,
   ])
 
   const unregister = useCallback(() => {
+    registerSignatureRef.current = ''
+    registerInProgressRef.current = false
     if (uaRef.current) {
       destroyUA(uaRef.current)
       uaRef.current = null
