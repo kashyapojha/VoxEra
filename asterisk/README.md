@@ -37,6 +37,8 @@ REGISTER From/To: 1001@13.62.237.148
 
 `modules.conf` is copied into the image (preload PJSIP + WebSocket modules). Without it, WebSocket connects but REGISTER times out.
 
+`sorcery.conf` uses `contact=memory` (not `astdb`) — otherwise REGISTER returns 200 OK but logs `Unable to bind contact` and JsSIP never shows registered.
+
 ## Deploy (rebuild required)
 
 `docker restart` and `docker compose up -d` alone do **not** pick up template changes — the template is **baked into the image** at build time.

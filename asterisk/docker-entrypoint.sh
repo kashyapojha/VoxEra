@@ -19,7 +19,8 @@ strip_crlf() {
 AST_BIN="/usr/sbin/asterisk"
 [ -x "$AST_BIN" ] || AST_BIN="asterisk"
 
-mkdir -p /var/run/asterisk /var/log/asterisk 2>/dev/null || true
+mkdir -p /var/run/asterisk /var/log/asterisk /var/lib/asterisk 2>/dev/null || true
+chmod 755 /var/lib/asterisk 2>/dev/null || true
 
 PJSIP_OUTPUT="/etc/asterisk/pjsip.conf"
 HTTP_OUTPUT="/etc/asterisk/http.conf"

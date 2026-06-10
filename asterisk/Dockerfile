@@ -31,7 +31,7 @@ RUN set -e; \
     done
 
 RUN rm -f /etc/asterisk/pjsip.conf /etc/asterisk/pjsip_wizard.conf 2>/dev/null || true && \
-    mkdir -p /var/log/asterisk /var/run/asterisk && \
+    mkdir -p /var/log/asterisk /var/run/asterisk /var/lib/asterisk && \
     chmod +x /docker-entrypoint.sh /usr/local/bin/asterisk-healthcheck.sh && \
     chown -R asterisk:asterisk /etc/asterisk /var/log/asterisk /var/run/asterisk 2>/dev/null || true
 

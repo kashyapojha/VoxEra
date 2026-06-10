@@ -109,13 +109,7 @@ export function createUA(callbacks, overrides = {}) {
     console.info(`[SIP] WebSocket connected — ${uri} (sending REGISTER…)`)
     startRegisterTimeout()
     callbacks.onConnected?.()
-    try {
-      if (configuration.register && !ua.isRegistered()) {
-        ua.register()
-      }
-    } catch (err) {
-      console.warn('[SIP] ua.register() error:', err)
-    }
+    // register:true already sends REGISTER — do not call ua.register() again (breaks JsSIP state).
   })
 
   ua.on('disconnected', (e) => {
@@ -141,6 +135,11 @@ export function createUA(callbacks, overrides = {}) {
     const code = e.response?.status_code
     const reason = e.response?.reason_phrase
     const detail = code ? `${code} ${reason || ''}`.trim() : String(e.cause || 'Unknown error')
+    // Asterisk may return 200 OK before contact bind is fixed; ignore stale failures if registered.
+    if (ua.isRegistered()) {
+      console.warn(`[SIP] Ignoring registrationFailed after successful register — ${detail}`)
+      return
+    }
     console.error(`[SIP] Registration failed — ${uri}`, detail, e.response || e)
     callbacks.onRegistrationFailed?.(detail, e)
   })
