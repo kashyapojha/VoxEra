@@ -60,6 +60,11 @@ env = {
     "DOCKER_FRONTEND_REPO": os.environ["DOCKER_FRONTEND_REPO"],
     "DOCKER_BACKEND_REPO": os.environ["DOCKER_BACKEND_REPO"],
     "IMAGE_TAG": os.environ["IMAGE_TAG"],
+    "VITE_API_URL": "",
+    "VITE_SIP_WS_URL": f"ws://{os.environ['ASTERISK_EXTERNAL_IP']}:8089/ws",
+    "VITE_SIP_URI": f"sip:1001@{os.environ['ASTERISK_EXTERNAL_IP']}",
+    "VITE_SIP_PASSWORD": "1001",
+    "VITE_SIP_DEBUG": "true",
 }
 
 path = Path(os.environ["APP_DIR"]) / ".env"
@@ -120,13 +125,14 @@ pjsip_cli_ok() {
     && ! printf '%s' "$out" | grep -qi 'No objects found'
 }
 
-echo "[deploy] Pulling app images..."
-time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml pull backend frontend postgres
+echo "[deploy] Pulling backend + postgres images..."
+time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml pull backend postgres
 
-# Asterisk config is baked into the image (no host volume mounts). Rebuild every deploy.
-echo "[deploy] Rebuilding Asterisk image (CONFIG_REVISION=${IMAGE_TAG})..."
+# Frontend + Asterisk built from repo (SIP/WebRTC fixes live here, not on Docker Hub frontend).
+echo "[deploy] Building frontend + Asterisk from repo..."
 time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml build \
-  --build-arg "CONFIG_REVISION=${IMAGE_TAG}" asterisk
+  --build-arg "CONFIG_REVISION=${IMAGE_TAG}" \
+  --no-cache frontend asterisk
 
 echo "[deploy] Starting containers (recreate asterisk + frontend)..."
 if ! time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml up -d --remove-orphans --force-recreate asterisk frontend; then

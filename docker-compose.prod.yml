@@ -26,7 +26,17 @@ services:
       start_period: 20s
 
   frontend:
-    image: ${DOCKER_USERNAME}/${DOCKER_FRONTEND_REPO}:${IMAGE_TAG}
+    # Build from repo on EC2 — Docker Hub image does not include local SIP fixes.
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-}
+        VITE_SIP_WS_URL: ${VITE_SIP_WS_URL:-ws://${ASTERISK_EXTERNAL_IP:-${PUBLIC_HOST}}:${ASTERISK_WSS_PORT:-8089}/ws}
+        VITE_SIP_URI: ${VITE_SIP_URI:-sip:1001@${ASTERISK_EXTERNAL_IP:-${PUBLIC_HOST}}}
+        VITE_SIP_PASSWORD: ${VITE_SIP_PASSWORD:-1001}
+        VITE_SIP_DEBUG: ${VITE_SIP_DEBUG:-true}
+    image: voxera-frontend:local
     container_name: voxera-frontend
     restart: unless-stopped
     ports:

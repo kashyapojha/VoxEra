@@ -22,6 +22,11 @@ if (!SIP_WS) {
   console.error('[SIP] VITE_SIP_WS_URL is not set — WebRTC will not connect')
 }
 
+console.info('[SIP] VoxEra sipService loaded', {
+  ws: SIP_WS || '(missing)',
+  defaultUri: SIP_URI || '(missing)',
+})
+
 const wiredSessions = new WeakSet()
 const wiredPeerConnections = new WeakSet()
 
