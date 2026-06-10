@@ -31,15 +31,36 @@ rm -f \
   "${PJSIP_DIR}/pjsip.aor.conf" \
   "${PJSIP_DIR}/pjsip.endpoint.conf" \
   "${PJSIP_DIR}/pjsip.domain.conf" \
+  "${PJSIP_DIR}/pjsip.identify.conf" \
+  "${PJSIP_DIR}/pjsip.registration.conf" \
   2>/dev/null || true
 
-for conf in extconfig.conf extensions.conf rtp.conf modules.conf sorcery.conf; do
+for conf in extconfig.conf extensions.conf rtp.conf modules.conf; do
   src="${PJSIP_DIR}/${conf}"
   if [ -f "$src" ]; then
     strip_crlf < "$src" > "/tmp/${conf}"
     mv "/tmp/${conf}" "$src"
   fi
 done
+
+# Always write sorcery at runtime — baked image may still have default contact=config,pjsip.conf.
+generate_sorcery_conf() {
+  cat > "${PJSIP_DIR}/sorcery.conf" <<'EOF'
+; Generated at container start — maps split pjsip.*.conf files (see docker-entrypoint.sh).
+[res_pjsip]
+global=config,pjsip.global.conf
+transport=config,pjsip.transport.conf
+auth=config,pjsip.auth.conf
+aor=config,pjsip.aor.conf
+endpoint=config,pjsip.endpoint.conf
+domain_alias=config,pjsip.domain.conf
+identify=config,pjsip.identify.conf
+registration=config,pjsip.registration.conf
+contact=memory
+EOF
+  strip_crlf < "${PJSIP_DIR}/sorcery.conf" > /tmp/sorcery.conf
+  mv /tmp/sorcery.conf "${PJSIP_DIR}/sorcery.conf"
+}
 
 # Split PJSIP into separate files so [1001] type=aor and [1001] type=endpoint do not merge.
 generate_pjsip_configs() {
@@ -126,8 +147,10 @@ direct_media=no
 EOF
 
   : > "${PJSIP_DIR}/pjsip.domain.conf"
+  : > "${PJSIP_DIR}/pjsip.identify.conf"
+  : > "${PJSIP_DIR}/pjsip.registration.conf"
 
-  for f in pjsip.global.conf pjsip.transport.conf pjsip.auth.conf pjsip.aor.conf pjsip.endpoint.conf pjsip.domain.conf; do
+  for f in pjsip.global.conf pjsip.transport.conf pjsip.auth.conf pjsip.aor.conf pjsip.endpoint.conf pjsip.domain.conf pjsip.identify.conf pjsip.registration.conf; do
     strip_crlf < "${PJSIP_DIR}/${f}" > "/tmp/${f}"
     mv "/tmp/${f}" "${PJSIP_DIR}/${f}"
   done
@@ -150,8 +173,33 @@ EOF
   mv /tmp/http.conf "$HTTP_OUTPUT"
 }
 
+validate_config_files() {
+  ok=1
+  if ! grep -q '^aor=config,pjsip.aor.conf' "${PJSIP_DIR}/sorcery.conf" 2>/dev/null; then
+    echo "[asterisk] FATAL: sorcery.conf missing aor=config,pjsip.aor.conf"
+    ok=0
+  fi
+  if ! grep -q '^contact=memory' "${PJSIP_DIR}/sorcery.conf" 2>/dev/null; then
+    echo "[asterisk] FATAL: sorcery.conf must use contact=memory (not contact=config,pjsip.conf)"
+    ok=0
+  fi
+  if ! grep -q '^\[1001\]' "${PJSIP_DIR}/pjsip.aor.conf" 2>/dev/null; then
+    echo "[asterisk] FATAL: pjsip.aor.conf missing [1001]"
+    ok=0
+  fi
+  if ! grep -q '^aors=1001$' "${PJSIP_DIR}/pjsip.endpoint.conf" 2>/dev/null; then
+    echo "[asterisk] FATAL: pjsip.endpoint.conf must have aors=1001"
+    ok=0
+  fi
+  if [ "$ok" -eq 0 ]; then
+    echo "[asterisk] --- sorcery.conf ---"
+    cat "${PJSIP_DIR}/sorcery.conf" 2>/dev/null || true
+    exit 1
+  fi
+  echo "[asterisk] sorcery OK (split files + contact=memory)"
+}
+
 verify_pjsip_runtime() {
-  HTTP_OUT="$("$AST_BIN" -rx "http show status" 2>&1)" || HTTP_OUT=""
   AOR_OUT="$("$AST_BIN" -rx "pjsip show aor 1001" 2>&1)" || AOR_OUT=""
   EP_OUT="$("$AST_BIN" -rx "pjsip show endpoint 1001" 2>&1)" || EP_OUT=""
   TP_OUT="$("$AST_BIN" -rx "pjsip show transport transport-wss" 2>&1)" || TP_OUT=""
@@ -195,6 +243,8 @@ verify_pjsip_runtime() {
   fi
 
   if [ "$ok" -eq 0 ]; then
+    echo "[asterisk] --- sorcery.conf ---"
+    cat "${PJSIP_DIR}/sorcery.conf" 2>/dev/null || true
     echo "[asterisk] --- pjsip.aor.conf ---"
     cat "${PJSIP_DIR}/pjsip.aor.conf" 2>/dev/null || true
     echo "[asterisk] --- pjsip.endpoint.conf ---"
@@ -208,8 +258,10 @@ verify_pjsip_runtime() {
   return 0
 }
 
+generate_sorcery_conf
 generate_pjsip_configs
 generate_http_conf
+validate_config_files
 
 echo "[asterisk] starting Asterisk..."
 "$AST_BIN" -f -vvvg -c &
@@ -230,12 +282,7 @@ if [ "$cli_ready" -ne 1 ]; then
   exit 1
 fi
 
-"$AST_BIN" -rx "module reload res_sorcery_memory.so" 2>&1 | tail -2 || true
-"$AST_BIN" -rx "module reload res_http_websocket.so" 2>&1 | tail -2 || true
-"$AST_BIN" -rx "module reload res_pjsip_transport_websocket.so" 2>&1 | tail -2 || true
-"$AST_BIN" -rx "module reload res_pjsip.so" 2>&1 | tail -2 || true
-"$AST_BIN" -rx "pjsip reload" 2>&1 | tail -3 || true
-sleep 4
+sleep 2
 
 if ! verify_pjsip_runtime; then
   echo "[asterisk] FATAL: PJSIP not ready"

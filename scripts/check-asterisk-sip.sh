@@ -19,12 +19,12 @@ if ! "${DOCKER[@]}" ps --format '{{.Names}}' | grep -qx 'voxera-asterisk'; then
   exit 1
 fi
 
-echo "=== split PJSIP config ==="
+echo "=== sorcery + split PJSIP ==="
+$C cat /etc/asterisk/sorcery.conf 2>/dev/null || true
+echo "---"
 $C cat /etc/asterisk/pjsip.aor.conf 2>/dev/null || true
 echo "---"
 $C cat /etc/asterisk/pjsip.endpoint.conf 2>/dev/null || true
-echo "---"
-$C grep '^contact=' /etc/asterisk/sorcery.conf 2>/dev/null || true
 echo ""
 
 echo "=== PJSIP objects ==="
@@ -54,8 +54,16 @@ if ! $C grep -q '^aors=1001$' /etc/asterisk/pjsip.endpoint.conf 2>/dev/null; the
   echo "FAIL: endpoint must have aors=1001"
   ok=0
 fi
+if ! $C grep -q '^aor=config,pjsip.aor.conf' /etc/asterisk/sorcery.conf 2>/dev/null; then
+  echo "FAIL: sorcery.conf must map aor to pjsip.aor.conf (not pjsip.conf)"
+  ok=0
+fi
 if ! $C grep -q '^contact=memory$' /etc/asterisk/sorcery.conf 2>/dev/null; then
-  echo "FAIL: sorcery.conf must use contact=memory"
+  echo "FAIL: sorcery.conf must use contact=memory (got contact=config,pjsip.conf?)"
+  ok=0
+fi
+if $C grep -q 'contact=config,pjsip.conf' /etc/asterisk/sorcery.conf 2>/dev/null; then
+  echo "FAIL: stale sorcery still points contact at missing pjsip.conf"
   ok=0
 fi
 if $C asterisk -rx "pjsip show transport transport-wss" 2>&1 | grep -q 'Unable to find'; then

@@ -1,6 +1,6 @@
 # Asterisk configuration
 
-PJSIP is **split across multiple files** at container start (`docker-entrypoint.sh`) so `[1001]` can be both AOR and endpoint without INI merge bugs.
+PJSIP is **split across multiple files** at container start (`docker-entrypoint.sh`) so `[1001]` can be both AOR and endpoint without INI merge bugs. **`sorcery.conf` is rewritten every start** so Asterisk never falls back to the missing `pjsip.conf`.
 
 ## Layout
 
@@ -28,10 +28,12 @@ Do **not** use `aors=1001-aor` or a single `pjsip.conf` with two `[1001]` blocks
 ## Deploy
 
 ```bash
-docker compose --env-file .env.production build --no-cache asterisk
-docker compose --env-file .env.production up -d --force-recreate asterisk
+docker compose build --no-cache asterisk
+docker compose up -d --force-recreate asterisk
 bash scripts/check-asterisk-sip.sh
 ```
+
+`docker compose up` alone reuses a cached image — always **`build --no-cache asterisk`** after config changes.
 
 Startup must log: `PJSIP ready — AOR 1001 + endpoint 1001 + transport-wss + contact=memory`
 

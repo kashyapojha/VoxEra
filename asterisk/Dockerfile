@@ -1,6 +1,6 @@
 FROM andrius/asterisk:22
 
-ARG CONFIG_REVISION=9
+ARG CONFIG_REVISION=10
 RUN echo "asterisk config revision: ${CONFIG_REVISION}"
 
 RUN if command -v apk >/dev/null 2>&1; then \
@@ -30,7 +30,9 @@ RUN set -e; \
       echo "found ${mod}.so at ${found}"; \
     done
 
-RUN rm -f /etc/asterisk/pjsip.conf /etc/asterisk/pjsip_wizard.conf 2>/dev/null || true && \
+RUN grep -q 'aor=config,pjsip.aor.conf' /etc/asterisk/sorcery.conf && \
+    grep -q '^contact=memory' /etc/asterisk/sorcery.conf && \
+    rm -f /etc/asterisk/pjsip.conf /etc/asterisk/pjsip_wizard.conf 2>/dev/null || true && \
     mkdir -p /var/log/asterisk /var/run/asterisk /var/lib/asterisk && \
     chmod +x /docker-entrypoint.sh /usr/local/bin/asterisk-healthcheck.sh && \
     chown -R asterisk:asterisk /etc/asterisk /var/log/asterisk /var/run/asterisk 2>/dev/null || true
