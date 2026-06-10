@@ -122,11 +122,17 @@ from_domain=${ASTERISK_EXTERNAL_IP}
 disallow=all
 allow=opus,ulaw,alaw
 webrtc=yes
+media_use_received_transport=yes
+rtcp_mux=yes
+use_avpf=yes
 identify_by=auth_username,username
 force_rport=yes
 rewrite_contact=yes
 rtp_symmetric=yes
 direct_media=no
+send_pai=yes
+trust_id_inbound=yes
+trust_id_outbound=yes
 
 [1002]
 type=endpoint
@@ -139,11 +145,17 @@ from_domain=${ASTERISK_EXTERNAL_IP}
 disallow=all
 allow=opus,ulaw,alaw
 webrtc=yes
+media_use_received_transport=yes
+rtcp_mux=yes
+use_avpf=yes
 identify_by=auth_username,username
 force_rport=yes
 rewrite_contact=yes
 rtp_symmetric=yes
 direct_media=no
+send_pai=yes
+trust_id_inbound=yes
+trust_id_outbound=yes
 EOF
 
   : > "${PJSIP_DIR}/pjsip.domain.conf"

@@ -85,6 +85,7 @@ export const SIPProvider = ({ children }) => {
   const currentCallRef = useRef(null)
   const registerSignatureRef = useRef('')
   const registerInProgressRef = useRef(false)
+  const disconnectTimerRef = useRef(null)
   const extensionRef = useRef(extension)
 
   useEffect(() => {
@@ -289,11 +290,25 @@ export const SIPProvider = ({ children }) => {
 
     const callbacks = {
       onConnecting: () => setConnectionStatus('connecting'),
-      onConnected: () => setConnectionStatus('connected'),
+      onConnected: () => {
+        clearTimeout(disconnectTimerRef.current)
+        disconnectTimerRef.current = null
+        setConnectionStatus('connected')
+      },
       onDisconnected: (cause) => {
-        // JsSIP auto-reconnects — do not clear isRegistered or destroy UA here.
         console.warn('[SIP] WebSocket dropped, JsSIP reconnecting…', cause || 'no cause')
         setConnectionStatus('connecting')
+        clearTimeout(disconnectTimerRef.current)
+        disconnectTimerRef.current = setTimeout(() => {
+          const ua = uaRef.current
+          if (ua && !ua.isConnected?.()) {
+            setIsRegistered(false)
+            setConnectionStatus('disconnected')
+            setRegistrationError(
+              'SIP WebSocket lost — register again on this browser to receive calls'
+            )
+          }
+        }, 12000)
       },
       onRegistered: (registeredExt) => {
         registerInProgressRef.current = false
@@ -473,8 +488,11 @@ export const SIPProvider = ({ children }) => {
     }
   }, [])
 
+  const sipOnline = isRegistered && connectionStatus === 'connected'
+
   const value = {
     isRegistered,
+    sipOnline,
     isRegistering,
     registrationError,
     extension,

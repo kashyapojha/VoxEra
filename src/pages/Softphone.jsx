@@ -7,7 +7,7 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { User, Phone } from 'lucide-react'
+import { User, Phone, PhoneOff } from 'lucide-react'
 import GlassCard from '../components/UI/GlassCard'
 import DialPad from '../components/Softphone/DialPad'
 import CallControls from '../components/Softphone/CallControls'
@@ -20,8 +20,15 @@ import { CallQualityPanel } from '../components/QoS/QoSComponents'
 const Softphone = () => {
   const {
     isRegistered,
+    sipOnline,
+    connectionStatus,
+    registrationError,
     extension,
     callStatus,
+    incomingCall,
+    incomingFrom,
+    answerCall,
+    rejectCall,
     callDuration,
     currentCall,
     rtpMetrics,
@@ -41,7 +48,7 @@ const Softphone = () => {
   const isInCall = callStatus !== 'idle' && callStatus !== 'ended'
 
   const handleCall = (number) => {
-    if (isRegistered && number) makeCall(number)
+    if (sipOnline && number) makeCall(number)
   }
 
   const handleHangup = () => {
@@ -81,13 +88,55 @@ const Softphone = () => {
 
               {/* Registration status bar */}
               <div className="flex items-center gap-2 mb-6">
-                <div className={`w-2.5 h-2.5 rounded-full animate-pulse ${isRegistered ? 'bg-green-500' : 'bg-red-500'}`} />
+                <div className={`w-2.5 h-2.5 rounded-full ${
+                  sipOnline ? 'bg-green-500 animate-pulse'
+                    : isRegistered ? 'bg-amber-500 animate-pulse'
+                      : 'bg-red-500'
+                }`} />
                 <span className="text-sm text-gray-400">
-                  {isRegistered
-                    ? `Registered as extension ${extension}`
-                    : 'Not registered — enter credentials below'}
+                  {sipOnline
+                    ? `Registered as extension ${extension} — ready for calls`
+                    : isRegistered
+                      ? `Extension ${extension} — WebSocket reconnecting (cannot receive calls yet)`
+                      : 'Not registered — enter credentials below'}
                 </span>
               </div>
+
+              {isRegistered && !sipOnline && (
+                <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-sm">
+                  SIP transport is down on this tab. Wait for reconnect or click Unregister → Register again.
+                  {connectionStatus === 'connecting' ? ' (reconnecting…)' : ''}
+                </div>
+              )}
+
+              {registrationError && isRegistered && (
+                <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-200 text-sm">
+                  {registrationError}
+                </div>
+              )}
+
+              {incomingCall && (
+                <div className="mb-6 w-full p-6 rounded-2xl bg-green-500/10 border-2 border-green-500/40 text-center">
+                  <p className="text-xs text-green-300 uppercase tracking-widest mb-1">Incoming call</p>
+                  <p className="text-3xl font-mono text-white mb-4">{incomingFrom || 'Unknown'}</p>
+                  <div className="flex justify-center gap-6">
+                    <button
+                      type="button"
+                      onClick={rejectCall}
+                      className="w-14 h-14 rounded-full bg-red-500 flex items-center justify-center hover:bg-red-600"
+                    >
+                      <PhoneOff size={22} className="text-white" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={answerCall}
+                      className="w-14 h-14 rounded-full bg-green-500 flex items-center justify-center hover:bg-green-600 animate-pulse"
+                    >
+                      <Phone size={22} className="text-white" />
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Show SipLogin if not registered */}
               {!isRegistered ? (
@@ -103,7 +152,7 @@ const Softphone = () => {
                   )}
 
                   {/* Dialpad */}
-                  <DialPad onCall={handleCall} disabled={!isRegistered || isInCall} />
+                  <DialPad onCall={handleCall} disabled={!sipOnline || isInCall || !!incomingCall} />
 
                   {/* Call controls */}
                   {isInCall && (
@@ -162,7 +211,9 @@ const Softphone = () => {
                   </div>
                   <div className="p-3 rounded-lg bg-white/5">
                     <p className="text-xs text-gray-500 mb-1">Status</p>
-                    <p className="font-semibold text-green-400 text-sm">Online</p>
+                    <p className={`font-semibold text-sm ${sipOnline ? 'text-green-400' : 'text-amber-400'}`}>
+                      {sipOnline ? 'Online' : 'Reconnecting'}
+                    </p>
                   </div>
                   <div className="p-3 rounded-lg bg-white/5">
                     <p className="text-xs text-gray-500 mb-1">Call State</p>
