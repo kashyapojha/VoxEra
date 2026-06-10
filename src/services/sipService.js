@@ -7,6 +7,12 @@
 import JsSIP from 'jssip'
 import { env, parseSipUri, trimEnv, hostFromUrl } from '../config/env'
 
+if (import.meta.env.DEV || import.meta.env.VITE_SIP_DEBUG === 'true') {
+  JsSIP.debug.enable('JsSIP:*')
+}
+
+const REGISTER_TIMEOUT_MS = 25_000
+
 const SIP_WS = env.sipWsUrl
 const SIP_URI = env.sipUri
 const SIP_PASSWORD = env.sipPassword
@@ -67,10 +73,32 @@ export function createUA(callbacks, overrides = {}) {
     connection_recovery_max_interval: 30,
   }
 
-  console.log('FINAL SIP CONFIG', configuration)
+  console.log('[SIP] UA config', {
+    ...configuration,
+    password: configuration.password ? '***' : undefined,
+    sockets: [websocketUrl],
+  })
 
   const extension = authorizationUser
   const ua = new JsSIP.UA(configuration)
+  let registerTimeoutId = null
+
+  const clearRegisterTimeout = () => {
+    if (registerTimeoutId) {
+      clearTimeout(registerTimeoutId)
+      registerTimeoutId = null
+    }
+  }
+
+  const startRegisterTimeout = () => {
+    clearRegisterTimeout()
+    registerTimeoutId = setTimeout(() => {
+      console.error(`[SIP] Registration timeout — no final REGISTER response within ${REGISTER_TIMEOUT_MS / 1000}s`)
+      callbacks.onRegistrationFailed?.(
+        `Timeout — no REGISTER response from server within ${REGISTER_TIMEOUT_MS / 1000}s (check Asterisk PJSIP + port 8089)`
+      )
+    }, REGISTER_TIMEOUT_MS)
+  }
 
   ua.on('connecting', () => {
     console.info(`[SIP] Connecting — ${uri}`)
@@ -78,31 +106,40 @@ export function createUA(callbacks, overrides = {}) {
   })
 
   ua.on('connected', () => {
-    console.info(`[SIP] WebSocket connected — ${uri}`)
+    console.info(`[SIP] WebSocket connected — ${uri} (sending REGISTER…)`)
+    startRegisterTimeout()
     callbacks.onConnected?.()
   })
 
   ua.on('disconnected', (e) => {
+    clearRegisterTimeout()
     console.warn(`[SIP] WebSocket disconnected — ${uri}`, e.cause)
     callbacks.onDisconnected?.(e.cause)
   })
 
   ua.on('registered', () => {
+    clearRegisterTimeout()
     console.info(`[SIP] Registered — ${uri}`)
     callbacks.onRegistered?.(extension)
   })
 
   ua.on('unregistered', () => {
+    clearRegisterTimeout()
     console.info(`[SIP] Unregistered — ${uri}`)
     callbacks.onUnregistered?.()
   })
 
   ua.on('registrationFailed', (e) => {
+    clearRegisterTimeout()
     const code = e.response?.status_code
     const reason = e.response?.reason_phrase
     const detail = code ? `${code} ${reason || ''}`.trim() : String(e.cause || 'Unknown error')
     console.error(`[SIP] Registration failed — ${uri}`, detail, e.response || e)
     callbacks.onRegistrationFailed?.(detail, e)
+  })
+
+  ua.on('registrationExpiring', () => {
+    console.info(`[SIP] Registration expiring — ${uri}`)
   })
 
   ua.on('newRTCSession', (data) => {
