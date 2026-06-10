@@ -58,5 +58,9 @@ for i in $(seq 1 60); do
 done
 
 echo "FAIL: PJSIP 1001 not ready after 3 minutes"
-"${DOCKER[@]}" logs voxera-asterisk --tail 60
+"${DOCKER[@]}" logs voxera-asterisk --tail 80
+echo "--- module show res_pjsip ---"
+"${DOCKER[@]}" exec voxera-asterisk asterisk -rx "module show like res_pjsip" 2>&1 || true
+echo "--- pjsip.conf head ---"
+"${DOCKER[@]}" exec voxera-asterisk head -40 /etc/asterisk/pjsip.conf 2>&1 || true
 exit 1

@@ -25,7 +25,7 @@ rm -f /etc/asterisk/pjsip.conf 2>/dev/null || true
 # Empty wizard file — silences "Unable to load pjsip_wizard.conf" from base image hooks.
 printf '[general]\n' > /etc/asterisk/pjsip_wizard.conf
 
-for conf in modules.conf sorcery.conf extconfig.conf extensions.conf rtp.conf; do
+for conf in extensions.conf rtp.conf; do
   src="/etc/asterisk/${conf}"
   if [ -f "$src" ]; then
     strip_crlf < "$src" > "/tmp/${conf}"
@@ -172,13 +172,18 @@ for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
 done
 
 if [ "$cli_ready" -eq 1 ]; then
-  "$AST_BIN" -rx "pjsip reload" 2>&1 || true
+  "$AST_BIN" -rx "module show like res_pjsip" 2>&1 | head -5 || true
+  "$AST_BIN" -rx "pjsip reload" 2>&1 | tail -3 || true
+  sleep 2
   AOR_OUT="$("$AST_BIN" -rx "pjsip show aor 1001" 2>&1)" || AOR_OUT=""
   EP_OUT="$("$AST_BIN" -rx "pjsip show endpoint 1001" 2>&1)" || EP_OUT=""
   if printf '%s' "$AOR_OUT" | grep -qi 'Unable to find' || printf '%s' "$EP_OUT" | grep -qi 'Unable to find'; then
     echo "[asterisk] WARNING: PJSIP 1001 not loaded after reload"
-    "$AST_BIN" -rx "module show like res_pjsip" 2>&1 || true
     "$AST_BIN" -rx "pjsip show endpoints" 2>&1 || true
+    "$AST_BIN" -rx "pjsip show aors" 2>&1 || true
+    if [ -f /var/log/asterisk/messages ]; then
+      grep -iE 'error|pjsip|Could not find option|duplicate' /var/log/asterisk/messages 2>/dev/null | tail -20 || true
+    fi
   else
     echo "[asterisk] PJSIP ready — endpoint 1001 + AOR 1001 loaded"
   fi
