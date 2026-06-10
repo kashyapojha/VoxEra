@@ -21,7 +21,7 @@ COPY docker-entrypoint.sh /docker-entrypoint.sh
 COPY healthcheck.sh /usr/local/bin/asterisk-healthcheck.sh
 
 RUN set -e; \
-    for mod in res_pjsip res_http_websocket res_pjsip_transport_websocket chan_pjsip; do \
+    for mod in res_pjsip res_sorcery_memory res_http_websocket res_pjsip_transport_websocket chan_pjsip; do \
       found="$(find /usr -name "${mod}.so" 2>/dev/null | head -1)"; \
       if [ -z "$found" ]; then \
         echo "BUILD FAIL: ${mod}.so not found"; \

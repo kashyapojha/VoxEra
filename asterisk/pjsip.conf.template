@@ -1,44 +1,4 @@
-; Reference template — runtime uses docker-entrypoint.sh
-; One [1001] endpoint only. AOR is [1001@${ASTERISK_EXTERNAL_IP}] (unique section name).
-
-[global]
-type=global
-endpoint_identifier_order=auth_username,username
-default_realm=${ASTERISK_EXTERNAL_IP}
-
-[transport-wss]
-type=transport
-protocol=ws
-bind=0.0.0.0:${ASTERISK_WS_PORT}
-external_signaling_address=${ASTERISK_EXTERNAL_IP}
-external_media_address=${ASTERISK_EXTERNAL_IP}
-
-[1001-auth]
-type=auth
-auth_type=userpass
-username=1001
-password=1001
-realm=${ASTERISK_EXTERNAL_IP}
-
-[1001@${ASTERISK_EXTERNAL_IP}]
-type=aor
-max_contacts=5
-remove_existing=yes
-support_path=yes
-
-[1001]
-type=endpoint
-transport=transport-wss
-context=internal
-aors=1001@${ASTERISK_EXTERNAL_IP}
-auth=1001-auth
-from_user=1001
-from_domain=${ASTERISK_EXTERNAL_IP}
-disallow=all
-allow=opus,ulaw,alaw
-webrtc=yes
-identify_by=username,auth_username
-force_rport=yes
-rewrite_contact=yes
-rtp_symmetric=yes
-direct_media=no
+; Reference only — runtime writes split files via docker-entrypoint.sh:
+;   pjsip.global.conf, pjsip.transport.conf, pjsip.auth.conf,
+;   pjsip.aor.conf, pjsip.endpoint.conf
+; [1001] type=aor lives in pjsip.aor.conf; [1001] type=endpoint in pjsip.endpoint.conf.

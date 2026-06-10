@@ -24,7 +24,7 @@ fi
 # shellcheck disable=SC1090
 set -a && . "$ENV_FILE" && set +a
 ASTERISK_EXTERNAL_IP="${ASTERISK_EXTERNAL_IP:-${PUBLIC_HOST:-127.0.0.1}}"
-SIP_AOR_1001="1001@${ASTERISK_EXTERNAL_IP}"
+SIP_AOR_1001="1001"
 
 REV="$(git rev-parse --short HEAD 2>/dev/null || date +%s)"
 echo "=== Rebuilding Asterisk (CONFIG_REVISION=${REV}) ==="
@@ -55,6 +55,7 @@ for i in $(seq 1 60); do
   if printf '%s' "$AOR" | grep -q "${SIP_AOR_1001}" \
     && printf '%s' "$AOR" | grep -qv 'Unable to find' \
     && printf '%s' "$EP" | grep -q 'Endpoint:  1001' \
+    && ! printf '%s' "$EP" | grep -q 'aors: 1001-aor' \
     && printf '%s' "$TP" | grep -q 'transport-wss' \
     && printf '%s' "$HTTP" | grep -qi 'Enabled'; then
     echo "OK: endpoint 1001 + AOR ${SIP_AOR_1001} + transport-wss + HTTP server"

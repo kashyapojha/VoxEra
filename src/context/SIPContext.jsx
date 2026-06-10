@@ -264,9 +264,9 @@ export const SIPProvider = ({ children }) => {
         setIsRegistering(false)
         let msg = `Registration failed: ${detail}`
         if (String(detail).startsWith('404')) {
-          msg += ' — Registrar AOR mismatch (server needs aors=1001 matching extension, not 1001-aor).'
+          msg += ' — Registrar AOR mismatch (server needs aors=1001 and AOR object 1001 loaded).'
         } else if (String(detail).includes('Timeout')) {
-          msg += ' — Asterisk may have sent 200 OK but contact bind failed (rebuild asterisk; sorcery contact=memory).'
+          msg += ' — Asterisk may have sent 200 OK without binding contact (rebuild asterisk; check pjsip show contacts).'
         } else if (String(detail).startsWith('403')) {
           msg += ' — Forbidden (wrong password or endpoint not allowed to register).'
         } else if (String(detail).startsWith('401')) {

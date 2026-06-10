@@ -1,32 +1,14 @@
-; Resolved production example — ASTERISK_EXTERNAL_IP=13.62.237.148
-; List [1001] type=aor BEFORE [1001] type=endpoint. Use aors=1001 (not 1001-aor).
+; Reference — runtime uses split files (see docker-entrypoint.sh).
+; Do NOT put both [1001] type=aor and [1001] type=endpoint in one file.
 
-[global]
-type=global
-endpoint_identifier_order=auth_username,username
-default_realm=13.62.237.148
-
-[transport-wss]
-type=transport
-protocol=ws
-bind=0.0.0.0:8089
-external_signaling_address=13.62.237.148
-external_media_address=13.62.237.148
-
-[1001-auth]
-type=auth
-auth_type=userpass
-username=1001
-password=1001
-realm=13.62.237.148
-
+; --- pjsip.aor.conf ---
 [1001]
 type=aor
 max_contacts=5
 remove_existing=yes
 support_path=yes
-qualify_frequency=30
 
+; --- pjsip.endpoint.conf ---
 [1001]
 type=endpoint
 transport=transport-wss
@@ -38,14 +20,8 @@ from_domain=13.62.237.148
 disallow=all
 allow=opus,ulaw,alaw
 webrtc=yes
+identify_by=auth_username,username
 force_rport=yes
 rewrite_contact=yes
 rtp_symmetric=yes
 direct_media=no
-identify_by=username,auth_username
-dtls_auto_generate_cert=yes
-dtls_verify=fingerprint
-dtls_setup=actpass
-ice_support=yes
-media_use_received_transport=yes
-rtcp_mux=yes
