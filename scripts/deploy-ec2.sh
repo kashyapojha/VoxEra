@@ -123,8 +123,9 @@ echo "[deploy] Pulling app images..."
 time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml pull backend frontend postgres
 
 # Asterisk config is baked into the image (no host volume mounts). Rebuild every deploy.
-echo "[deploy] Rebuilding Asterisk image..."
-time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml build asterisk
+echo "[deploy] Rebuilding Asterisk image (CONFIG_REVISION=${IMAGE_TAG})..."
+time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml build \
+  --build-arg "CONFIG_REVISION=${IMAGE_TAG}" asterisk
 
 echo "[deploy] Starting containers (recreate asterisk + frontend)..."
 if ! time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml up -d --remove-orphans --force-recreate asterisk frontend; then

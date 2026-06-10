@@ -68,6 +68,8 @@ services:
     build:
       context: ./asterisk
       dockerfile: Dockerfile
+      args:
+        CONFIG_REVISION: ${IMAGE_TAG:-local}
     container_name: voxera-asterisk
     restart: unless-stopped
     healthcheck:

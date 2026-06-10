@@ -1,6 +1,9 @@
 FROM andrius/asterisk:22
 
-# envsubst for pjsip.conf / http.conf at container start; wget/curl for deploy diagnostics only.
+ARG CONFIG_REVISION=1
+RUN echo "asterisk config revision: ${CONFIG_REVISION}"
+
+# wget/curl for deploy diagnostics only; pjsip.conf is generated inline in docker-entrypoint.sh.
 RUN if command -v apk >/dev/null 2>&1; then \
       apk add --no-cache gettext wget curl; \
     else \
