@@ -264,7 +264,9 @@ export const SIPProvider = ({ children }) => {
         setIsRegistering(false)
         let msg = `Registration failed: ${detail}`
         if (String(detail).startsWith('404')) {
-          msg += ' — Registrar AOR mismatch (server needs aors=1001@host matching REGISTER To header).'
+          msg += ' — Registrar AOR mismatch (server needs aors=1001 matching extension, not 1001-aor).'
+        } else if (String(detail).includes('Timeout')) {
+          msg += ' — WebSocket OK but Asterisk did not answer REGISTER (rebuild asterisk; check transport-wss + modules.conf).'
         } else if (String(detail).startsWith('403')) {
           msg += ' — Forbidden (wrong password or endpoint not allowed to register).'
         } else if (String(detail).startsWith('401')) {

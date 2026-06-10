@@ -27,16 +27,13 @@ Mounted volumes: `pjsip.conf.template`, `http.conf.template`, `modules.conf`, `s
 
 ```
 REGISTER From/To: 1001@13.62.237.148
-  → endpoint [1001]                    (name = From username)
-  → auth [1001-auth]                   (endpoint auth=1001-auth)
-  → aor [1001@13.62.237.148]           (endpoint aors=1001@13.62.237.148)
+  → auth [1001-auth]       (endpoint auth=1001-auth)
+  → aor [1001] type=aor    (listed BEFORE endpoint — same section name, different type=)
+  → endpoint [1001]        (aors=1001 — must match REGISTER username, not 1001-aor)
+  → transport transport-wss (if missing: WebSocket connects but REGISTER times out)
 ```
 
-**Do not** use two `[1001]` sections (`type=aor` + `type=endpoint`) — Asterisk's INI parser keeps only one category per name, so the AOR object is silently dropped.
-
-The AOR section name must be unique from `[1001]` endpoint. Use `1001@${ASTERISK_EXTERNAL_IP}` so `find_registrar_aor` matches REGISTER `To: 1001@host` against `aors=1001@host`.
-
-Do **not** use `aors=1001-aor` — registrar matches the `aors=` list entry to the REGISTER username; `1001-aor` ≠ `1001` → **404**.
+`modules.conf` is copied into the image (preload `res_pjsip`, `res_http_websocket`, `res_pjsip_transport_websocket`, `chan_pjsip`). Without it, WS connects but SIP REGISTER gets no response.
 
 ## Deploy (rebuild required)
 
@@ -53,7 +50,7 @@ Check startup logs for:
 
 ```text
 [asterisk] endpoint aors: aors=1001
-[asterisk] endpoint auth: auth=1001-auth
+[asterisk] PJSIP ready — endpoint 1001 + AOR 1001 + transport-wss loaded
 ```
 
 ## Verify
@@ -61,7 +58,8 @@ Check startup logs for:
 ```bash
 docker exec -it voxera-asterisk cat /etc/asterisk/pjsip.conf
 docker exec -it voxera-asterisk asterisk -rx "pjsip show endpoint 1001"
-docker exec -it voxera-asterisk asterisk -rx "pjsip show aor 1001@YOUR_PUBLIC_IP"
+docker exec -it voxera-asterisk asterisk -rx "pjsip show aor 1001"
+docker exec -it voxera-asterisk asterisk -rx "pjsip show transport transport-wss"
 docker exec -it voxera-asterisk asterisk -rx "pjsip show auth 1001-auth"
 docker exec -it voxera-asterisk asterisk -rx "pjsip show contacts"
 docker exec -it voxera-asterisk asterisk -rx "pjsip set logger on"

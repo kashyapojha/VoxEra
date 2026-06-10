@@ -23,7 +23,7 @@ HTTP_OUTPUT="/etc/asterisk/http.conf"
 
 rm -f /etc/asterisk/pjsip.conf /etc/asterisk/pjsip_wizard.conf 2>/dev/null || true
 
-for conf in extconfig.conf extensions.conf rtp.conf; do
+for conf in extconfig.conf extensions.conf rtp.conf modules.conf sorcery.conf; do
   src="/etc/asterisk/${conf}"
   if [ -f "$src" ]; then
     strip_crlf < "$src" > "/tmp/${conf}"
@@ -31,7 +31,8 @@ for conf in extconfig.conf extensions.conf rtp.conf; do
   fi
 done
 
-# Generate pjsip.conf inline — avoids envsubst corrupting auth_username,username / aors lines.
+# AOR [1001] must be listed BEFORE endpoint [1001] — same section name, different type=.
+# aors=1001 must match REGISTER To username (not 1001-aor).
 generate_pjsip_conf() {
   cat > "$PJSIP_OUTPUT" <<EOF
 ; WebRTC PJSIP — generated at container start
@@ -55,7 +56,7 @@ username=1001
 password=1001
 realm=${ASTERISK_EXTERNAL_IP}
 
-[1001@${ASTERISK_EXTERNAL_IP}]
+[1001]
 type=aor
 max_contacts=5
 remove_existing=yes
@@ -65,7 +66,7 @@ support_path=yes
 type=endpoint
 transport=transport-wss
 context=internal
-aors=1001@${ASTERISK_EXTERNAL_IP}
+aors=1001
 auth=1001-auth
 from_user=1001
 from_domain=${ASTERISK_EXTERNAL_IP}
@@ -85,7 +86,7 @@ username=1002
 password=1002
 realm=${ASTERISK_EXTERNAL_IP}
 
-[1002@${ASTERISK_EXTERNAL_IP}]
+[1002]
 type=aor
 max_contacts=5
 remove_existing=yes
@@ -95,7 +96,7 @@ support_path=yes
 type=endpoint
 transport=transport-wss
 context=internal
-aors=1002@${ASTERISK_EXTERNAL_IP}
+aors=1002
 auth=1002-auth
 from_user=1002
 from_domain=${ASTERISK_EXTERNAL_IP}
@@ -128,6 +129,59 @@ EOF
   mv /tmp/http.conf "$HTTP_OUTPUT"
 }
 
+verify_pjsip_runtime() {
+  AOR_OUT="$("$AST_BIN" -rx "pjsip show aor 1001" 2>&1)" || AOR_OUT=""
+  EP_OUT="$("$AST_BIN" -rx "pjsip show endpoint 1001" 2>&1)" || EP_OUT=""
+  TP_OUT="$("$AST_BIN" -rx "pjsip show transport transport-wss" 2>&1)" || TP_OUT=""
+  WS_OUT="$("$AST_BIN" -rx "module show like websocket" 2>&1)" || WS_OUT=""
+  CHAN_OUT="$("$AST_BIN" -rx "module show like chan_sip" 2>&1)" || CHAN_OUT=""
+
+  ok=1
+  if printf '%s' "$AOR_OUT" | grep -qi 'Unable to find'; then
+    echo "[asterisk] FATAL: AOR 1001 not loaded"
+    ok=0
+  fi
+  if printf '%s' "$EP_OUT" | grep -qi 'Unable to find'; then
+    echo "[asterisk] FATAL: endpoint 1001 not loaded"
+    ok=0
+  fi
+  if printf '%s' "$TP_OUT" | grep -qi 'Unable to find'; then
+    echo "[asterisk] FATAL: transport-wss not loaded — WebSocket connects but REGISTER gets no SIP response"
+    ok=0
+  fi
+  if ! printf '%s' "$WS_OUT" | grep -q 'res_http_websocket.so'; then
+    echo "[asterisk] FATAL: res_http_websocket not loaded"
+    ok=0
+  fi
+  if ! printf '%s' "$WS_OUT" | grep -q 'res_pjsip_transport_websocket.so'; then
+    echo "[asterisk] FATAL: res_pjsip_transport_websocket not loaded"
+    ok=0
+  fi
+  if printf '%s' "$CHAN_OUT" | grep -q '1 modules loaded'; then
+    echo "[asterisk] FATAL: chan_sip is loaded — will steal WebSocket REGISTER"
+    ok=0
+  fi
+
+  if [ "$ok" -eq 0 ]; then
+    echo "[asterisk] --- pjsip.conf (first 80 lines) ---"
+    sed -n '1,80p' "$PJSIP_OUTPUT" 2>/dev/null || true
+    echo "[asterisk] --- pjsip show transports ---"
+    "$AST_BIN" -rx "pjsip show transports" 2>&1 || true
+    echo "[asterisk] --- pjsip show endpoints ---"
+    "$AST_BIN" -rx "pjsip show endpoints" 2>&1 || true
+    echo "[asterisk] --- pjsip show aors ---"
+    "$AST_BIN" -rx "pjsip show aors" 2>&1 || true
+    if [ -f /var/log/asterisk/messages ]; then
+      echo "[asterisk] --- recent errors ---"
+      grep -iE 'error|pjsip|Could not find option|duplicate|transport' /var/log/asterisk/messages 2>/dev/null | tail -30 || true
+    fi
+    return 1
+  fi
+
+  echo "[asterisk] PJSIP ready — endpoint 1001 + AOR 1001 + transport-wss loaded"
+  return 0
+}
+
 generate_pjsip_conf
 generate_http_conf
 
@@ -136,11 +190,10 @@ if [ "$ASTERISK_EXTERNAL_IP" = "127.0.0.1" ]; then
   echo "[asterisk] WARNING: ASTERISK_EXTERNAL_IP=127.0.0.1 — set PUBLIC_HOST in production"
 fi
 echo "[asterisk] digest default_realm: $(grep '^default_realm=' "$PJSIP_OUTPUT" | head -1)"
-echo "[asterisk] endpoint_identifier_order: $(grep '^endpoint_identifier_order=' "$PJSIP_OUTPUT" | head -1)"
-echo "[asterisk] endpoint aors: $(grep '^aors=1001@' "$PJSIP_OUTPUT" | head -1)"
+echo "[asterisk] endpoint aors: $(grep '^aors=1001$' "$PJSIP_OUTPUT" | head -1)"
 
-if ! grep -q "^aors=1001@${ASTERISK_EXTERNAL_IP}$" "$PJSIP_OUTPUT"; then
-  echo "[asterisk] FATAL: generated pjsip.conf missing aors=1001@${ASTERISK_EXTERNAL_IP}"
+if ! grep -q '^aors=1001$' "$PJSIP_OUTPUT"; then
+  echo "[asterisk] FATAL: generated pjsip.conf missing aors=1001"
   sed -n '1,60p' "$PJSIP_OUTPUT" 2>/dev/null || true
   exit 1
 fi
@@ -149,7 +202,6 @@ echo "[asterisk] starting Asterisk..."
 "$AST_BIN" -f -vvvg -c &
 ASTERISK_PID=$!
 
-# Wait for CLI, then reload PJSIP so objects load after res_pjsip registers types.
 cli_ready=0
 for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
   if "$AST_BIN" -rx "core show uptime" 2>/dev/null | grep -qi uptime; then
@@ -160,26 +212,12 @@ for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
 done
 
 if [ "$cli_ready" -eq 1 ]; then
-  echo "[asterisk] sorcery endpoint source: $(grep '^endpoint=' /etc/asterisk/sorcery.conf 2>/dev/null | head -1)"
-  "$AST_BIN" -rx "module show like res_pjsip" 2>&1 | head -5 || true
   "$AST_BIN" -rx "module reload res_pjsip.so" 2>&1 | tail -2 || true
   "$AST_BIN" -rx "pjsip reload" 2>&1 | tail -3 || true
   sleep 3
   "$AST_BIN" -rx "pjsip reload" 2>&1 | tail -2 || true
   sleep 2
-  AOR_OUT="$("$AST_BIN" -rx "pjsip show aor 1001@${ASTERISK_EXTERNAL_IP}" 2>&1)" || AOR_OUT=""
-  EP_OUT="$("$AST_BIN" -rx "pjsip show endpoint 1001" 2>&1)" || EP_OUT=""
-  if printf '%s' "$AOR_OUT" | grep -qi 'Unable to find' || printf '%s' "$EP_OUT" | grep -qi 'Unable to find'; then
-    echo "[asterisk] WARNING: PJSIP 1001 not loaded after reload"
-    "$AST_BIN" -rx "pjsip show transports" 2>&1 || true
-    "$AST_BIN" -rx "pjsip show endpoints" 2>&1 || true
-    "$AST_BIN" -rx "pjsip show aors" 2>&1 || true
-    if [ -f /var/log/asterisk/messages ]; then
-      grep -iE 'error|pjsip|Could not find option|duplicate' /var/log/asterisk/messages 2>/dev/null | tail -20 || true
-    fi
-  else
-    echo "[asterisk] PJSIP ready — endpoint 1001 + AOR 1001@${ASTERISK_EXTERNAL_IP} loaded"
-  fi
+  verify_pjsip_runtime || true
 else
   echo "[asterisk] WARNING: Asterisk CLI not ready within 30s"
 fi

@@ -109,6 +109,13 @@ export function createUA(callbacks, overrides = {}) {
     console.info(`[SIP] WebSocket connected — ${uri} (sending REGISTER…)`)
     startRegisterTimeout()
     callbacks.onConnected?.()
+    try {
+      if (configuration.register && !ua.isRegistered()) {
+        ua.register()
+      }
+    } catch (err) {
+      console.warn('[SIP] ua.register() error:', err)
+    }
   })
 
   ua.on('disconnected', (e) => {

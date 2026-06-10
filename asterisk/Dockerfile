@@ -11,19 +11,9 @@ RUN if command -v apk >/dev/null 2>&1; then \
       rm -rf /var/lib/apt/lists/*; \
     fi
 
-# Patch base modules.conf — prepend noload so wizard/chan_sip never load.
-RUN if [ -f /etc/asterisk/modules.conf ]; then \
-      tmp="$(mktemp)"; \
-      { \
-        echo '; VoxEra — WebSocket REGISTER must use res_pjsip, not chan_sip/wizard'; \
-        grep -q 'noload => chan_sip.so' /etc/asterisk/modules.conf || echo 'noload => chan_sip.so'; \
-        grep -q 'noload => res_pjsip_config_wizard.so' /etc/asterisk/modules.conf || echo 'noload => res_pjsip_config_wizard.so'; \
-        echo ''; \
-        cat /etc/asterisk/modules.conf; \
-      } > "$tmp" && mv "$tmp" /etc/asterisk/modules.conf; \
-    fi
-
-# Keep base sorcery.conf — AORs already load from pjsip.conf. Block realtime via extconfig only.
+# VoxEra modules.conf preloads PJSIP + WebSocket stack before pjsip.conf is parsed.
+COPY modules.conf /etc/asterisk/modules.conf
+COPY sorcery.conf /etc/asterisk/sorcery.conf
 COPY extconfig.conf /etc/asterisk/extconfig.conf
 COPY extensions.conf /etc/asterisk/extensions.conf
 COPY rtp.conf /etc/asterisk/rtp.conf

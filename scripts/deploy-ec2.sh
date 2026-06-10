@@ -12,7 +12,6 @@ JWT_SECRET="${JWT_SECRET:?JWT_SECRET is required}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
 PUBLIC_HOST="${PUBLIC_HOST:?PUBLIC_HOST is required}"
 ASTERISK_EXTERNAL_IP="${ASTERISK_EXTERNAL_IP:-$PUBLIC_HOST}"
-SIP_AOR_1001="1001@${ASTERISK_EXTERNAL_IP}"
 
 POSTGRES_DB="${POSTGRES_DB:-voxera}"
 POSTGRES_USER="${POSTGRES_USER:-voxera}"
@@ -178,6 +177,7 @@ fi
 echo "Waiting for Asterisk PJSIP 1001..."
 AOR_OUT=""
 EP_OUT=""
+TP_OUT=""
 AST_HEALTH="starting"
 AST_UPTIME=""
 AST_RESTARTS=0
@@ -192,10 +192,12 @@ for i in $(seq 1 60); do
     exit 1
   fi
 
-  AOR_OUT="$(docker_exec_asterisk asterisk -rx "pjsip show aor ${SIP_AOR_1001}" || true)"
+  AOR_OUT="$(docker_exec_asterisk asterisk -rx "pjsip show aor 1001" || true)"
   EP_OUT="$(docker_exec_asterisk asterisk -rx "pjsip show endpoint 1001" || true)"
-  if pjsip_cli_ok "$AOR_OUT" && printf '%s' "$AOR_OUT" | grep -q "${SIP_AOR_1001}" \
-    && pjsip_cli_ok "$EP_OUT" && printf '%s' "$EP_OUT" | grep -q '1001'; then
+  TP_OUT="$(docker_exec_asterisk asterisk -rx "pjsip show transport transport-wss" || true)"
+  if pjsip_cli_ok "$AOR_OUT" && printf '%s' "$AOR_OUT" | grep -q '1001' \
+    && pjsip_cli_ok "$EP_OUT" && printf '%s' "$EP_OUT" | grep -q '1001' \
+    && pjsip_cli_ok "$TP_OUT" && printf '%s' "$TP_OUT" | grep -q 'transport-wss'; then
     echo "Asterisk PJSIP ready (docker health=${AST_HEALTH})"
     break
   fi
@@ -206,10 +208,12 @@ for i in $(seq 1 60); do
     "${DOCKER[@]}" inspect voxera-asterisk --format='{{range .State.Health.Log}}{{.Output}}{{end}}' 2>/dev/null | tail -8 || true
     "${DOCKER[@]}" logs voxera-asterisk --tail 200 2>&1 || true
     docker_exec_asterisk cat /etc/asterisk/pjsip.conf 2>/dev/null | head -40 || true
-    echo "--- pjsip show aor ${SIP_AOR_1001} ---"
+    echo "--- pjsip show aor 1001 ---"
     printf '%s\n' "$AOR_OUT"
     echo "--- pjsip show endpoint 1001 ---"
     printf '%s\n' "$EP_OUT"
+    echo "--- pjsip show transport transport-wss ---"
+    printf '%s\n' "$TP_OUT"
     docker_exec_asterisk asterisk -rx "pjsip show aors" || true
     docker_exec_asterisk asterisk -rx "pjsip show endpoints" || true
     docker_exec_asterisk asterisk -rx "module show like res_pjsip" || true
@@ -229,11 +233,13 @@ for i in $(seq 1 60); do
 done
 
 echo "[deploy] Verifying Asterisk PJSIP runtime..."
-if ! pjsip_cli_ok "$AOR_OUT" || ! printf '%s' "$AOR_OUT" | grep -q "${SIP_AOR_1001}" \
-  || ! pjsip_cli_ok "$EP_OUT" || ! printf '%s' "$EP_OUT" | grep -q '1001'; then
-  echo "[deploy] FAIL: pjsip endpoint 1001 / AOR ${SIP_AOR_1001} not loaded"
+if ! pjsip_cli_ok "$AOR_OUT" || ! printf '%s' "$AOR_OUT" | grep -q '1001' \
+  || ! pjsip_cli_ok "$EP_OUT" || ! printf '%s' "$EP_OUT" | grep -q '1001' \
+  || ! pjsip_cli_ok "$TP_OUT" || ! printf '%s' "$TP_OUT" | grep -q 'transport-wss'; then
+  echo "[deploy] FAIL: pjsip endpoint 1001 / AOR 1001 / transport-wss not loaded"
   printf '%s\n' "$AOR_OUT"
   printf '%s\n' "$EP_OUT"
+  printf '%s\n' "$TP_OUT"
   exit 1
 fi
 
@@ -261,7 +267,7 @@ if printf '%s' "$CHAN_SIP_OUT" | grep -q '1 modules loaded'; then
   echo "[deploy] FAIL: chan_sip is loaded — WebSocket REGISTER will 401"
   exit 1
 fi
-echo "[deploy] OK: pjsip endpoint 1001 + AOR ${SIP_AOR_1001} loaded, chan_sip unloaded, realm=${SIP_REALM}"
+echo "[deploy] OK: pjsip endpoint 1001 + AOR 1001 + transport-wss loaded, chan_sip unloaded, realm=${SIP_REALM}"
 
 echo "[deploy] Verifying Asterisk WebSocket modules (JsSIP needs /ws on :8089)..."
 sleep 3
