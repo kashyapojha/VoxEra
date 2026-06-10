@@ -7,6 +7,7 @@ import { createContext, useContext, useState, useCallback, useRef, useEffect } f
 import {
   createUA,
   makeCall as sipMakeCall,
+  getUaSipDomain,
   answerCall as sipAnswerCall,
   terminateSession,
   destroyUA,
@@ -417,9 +418,9 @@ export const SIPProvider = ({ children }) => {
     if (!uaRef.current || !isRegistered) return
     if (callStatus !== 'idle') return
     try {
-      const session = sipMakeCall(uaRef.current, target, SIP_DOMAIN)
-      setCurrentCall(session)
-      setCallStatus('calling')
+      const domain = getUaSipDomain(uaRef.current)
+      sipMakeCall(uaRef.current, target, domain)
+      // callStatus set in onOutgoingCall / onProgress / markCallConnected
     } catch (e) {
       console.error('[SIP] makeCall error:', e)
     }

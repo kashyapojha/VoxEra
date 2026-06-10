@@ -114,6 +114,13 @@ function attachSessionHandlers(session, callbacks) {
     callbacks.onFailed?.(session, 'getUserMediaFailed')
   })
 
+  session.on('sending', (e) => {
+    if (e.request?.method === 'INVITE') {
+      console.info('[SIP] INVITE sent')
+      callbacks.onProgress?.(session, 100)
+    }
+  })
+
   session.on('peerconnection', (e) => {
     console.info('[SIP] PeerConnection created')
     bindPeerConnection(e.peerconnection, session, callbacks)
@@ -264,7 +271,6 @@ export function createUA(callbacks, overrides = {}) {
     const originator = data.originator
 
     console.info(`[SIP] New session — originator: ${originator}`)
-    attachSessionHandlers(session, callbacks)
 
     if (originator === 'remote') {
       const caller = session.remote_identity?.uri?.user || 'Unknown'
@@ -275,15 +281,27 @@ export function createUA(callbacks, overrides = {}) {
       console.info(`[SIP] Outgoing call to ${callee}`)
       callbacks.onOutgoingCall?.(session, callee)
     }
+
+    // After UI sets initial state — attach handlers (may upgrade calling → ringing → connected).
+    attachSessionHandlers(session, callbacks)
   })
 
   return ua
 }
 
+export function getUaSipDomain(ua) {
+  const uri = ua?.configuration?.uri
+  if (uri) {
+    const { domain } = parseSipUri(uri)
+    if (domain) return domain
+  }
+  return hostFromUrl(SIP_WS) || SIP_DOMAIN
+}
+
 export function makeCall(ua, target, domain) {
   if (!ua) throw new Error('UA not initialized')
 
-  const callDomain = domain || hostFromUrl(SIP_WS) || SIP_DOMAIN
+  const callDomain = domain || getUaSipDomain(ua)
   const targetURI = `sip:${target}@${callDomain}`
 
   console.info(`[SIP] Calling ${targetURI}`)
