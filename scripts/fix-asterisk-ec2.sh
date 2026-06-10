@@ -21,6 +21,11 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 
+# shellcheck disable=SC1090
+set -a && . "$ENV_FILE" && set +a
+ASTERISK_EXTERNAL_IP="${ASTERISK_EXTERNAL_IP:-${PUBLIC_HOST:-127.0.0.1}}"
+SIP_AOR_1001="1001@${ASTERISK_EXTERNAL_IP}"
+
 REV="$(git rev-parse --short HEAD 2>/dev/null || date +%s)"
 echo "=== Rebuilding Asterisk (CONFIG_REVISION=${REV}) ==="
 "${COMPOSE[@]}" --env-file "$ENV_FILE" -f docker-compose.prod.yml build \
@@ -38,13 +43,13 @@ for i in $(seq 1 60); do
     exit 1
   fi
 
-  AOR="$("${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show aor 1001" 2>&1 || true)"
+  AOR="$("${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show aor ${SIP_AOR_1001}" 2>&1 || true)"
   EP="$("${DOCKER[@]}" exec voxera-asterisk asterisk -rx "pjsip show endpoint 1001" 2>&1 || true)"
-  if printf '%s' "$AOR" | grep -q '1001' \
+  if printf '%s' "$AOR" | grep -q "${SIP_AOR_1001}" \
     && printf '%s' "$AOR" | grep -qv 'Unable to find' \
     && printf '%s' "$EP" | grep -q '1001' \
     && printf '%s' "$EP" | grep -qv 'Unable to find'; then
-    echo "OK: PJSIP endpoint 1001 + AOR 1001 loaded"
+    echo "OK: PJSIP endpoint 1001 + AOR ${SIP_AOR_1001} loaded"
     "${DOCKER[@]}" ps --filter name=voxera-asterisk
     exit 0
   fi

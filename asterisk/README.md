@@ -27,12 +27,16 @@ Mounted volumes: `pjsip.conf.template`, `http.conf.template`, `modules.conf`, `s
 
 ```
 REGISTER From/To: 1001@13.62.237.148
-  → endpoint [1001]        (name = From username)
-  → auth [1001-auth]       (endpoint auth=1001-auth — MUST match section name exactly)
-  → aor [1001]             (endpoint aors=1001 — AOR id MUST match REGISTER username)
+  → endpoint [1001]                    (name = From username)
+  → auth [1001-auth]                   (endpoint auth=1001-auth)
+  → aor [1001@13.62.237.148]           (endpoint aors=1001@13.62.237.148)
 ```
 
-Do **not** use `auth=1001` unless you also have `[1001] type=auth` as the only `[1001]` auth block. Three `[1001]` sections (auth+aor+endpoint) can prevent Asterisk from loading the auth object → `Couldn't find auth '1001'` and **500**.
+**Do not** use two `[1001]` sections (`type=aor` + `type=endpoint`) — Asterisk's INI parser keeps only one category per name, so the AOR object is silently dropped.
+
+The AOR section name must be unique from `[1001]` endpoint. Use `1001@${ASTERISK_EXTERNAL_IP}` so `find_registrar_aor` matches REGISTER `To: 1001@host` against `aors=1001@host`.
+
+Do **not** use `aors=1001-aor` — registrar matches the `aors=` list entry to the REGISTER username; `1001-aor` ≠ `1001` → **404**.
 
 ## Deploy (rebuild required)
 
@@ -57,7 +61,7 @@ Check startup logs for:
 ```bash
 docker exec -it voxera-asterisk cat /etc/asterisk/pjsip.conf
 docker exec -it voxera-asterisk asterisk -rx "pjsip show endpoint 1001"
-docker exec -it voxera-asterisk asterisk -rx "pjsip show aor 1001"
+docker exec -it voxera-asterisk asterisk -rx "pjsip show aor 1001@YOUR_PUBLIC_IP"
 docker exec -it voxera-asterisk asterisk -rx "pjsip show auth 1001-auth"
 docker exec -it voxera-asterisk asterisk -rx "pjsip show contacts"
 docker exec -it voxera-asterisk asterisk -rx "pjsip set logger on"

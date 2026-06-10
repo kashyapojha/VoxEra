@@ -19,7 +19,7 @@ username=1001
 password=1001
 realm=${ASTERISK_EXTERNAL_IP}
 
-[1001]
+[1001@${ASTERISK_EXTERNAL_IP}]
 type=aor
 max_contacts=5
 remove_existing=yes
@@ -29,7 +29,7 @@ support_path=yes
 type=endpoint
 transport=transport-wss
 context=internal
-aors=1001
+aors=1001@${ASTERISK_EXTERNAL_IP}
 auth=1001-auth
 from_user=1001
 from_domain=${ASTERISK_EXTERNAL_IP}
@@ -49,7 +49,7 @@ username=1002
 password=1002
 realm=${ASTERISK_EXTERNAL_IP}
 
-[1002]
+[1002@${ASTERISK_EXTERNAL_IP}]
 type=aor
 max_contacts=5
 remove_existing=yes
@@ -59,7 +59,7 @@ support_path=yes
 type=endpoint
 transport=transport-wss
 context=internal
-aors=1002
+aors=1002@${ASTERISK_EXTERNAL_IP}
 auth=1002-auth
 from_user=1002
 from_domain=${ASTERISK_EXTERNAL_IP}
