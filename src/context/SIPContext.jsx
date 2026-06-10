@@ -80,6 +80,7 @@ export const SIPProvider = ({ children }) => {
   const [incomingFrom, setIncomingFrom] = useState(null)
   const [pendingCaller, setPendingCaller] = useState(null)
   const [sipInvitePending, setSipInvitePending] = useState(false)
+  const [sipSessionReady, setSipSessionReady] = useState(false)  // FIX: dedicated flag for JsSIP session arrival
   const [currentCall, setCurrentCall] = useState(null)
 
   const [rtpMetrics, setRtpMetrics] = useState(defaultMetrics)
@@ -332,6 +333,7 @@ export const SIPProvider = ({ children }) => {
     setCallStatus('idle')
     setCurrentCall(null)
     setIncomingCall(null)
+    setSipSessionReady(false)   // FIX: clear session ready flag on reset
     setIncomingFrom(null)
     setPendingCaller(null)
     setSipInvitePending(false)
@@ -348,6 +350,7 @@ export const SIPProvider = ({ children }) => {
     setCurrentCall(session)
     setCallStatus('connected')
     setIncomingCall(null)
+    setSipSessionReady(false)   // FIX: clear when call moves to connected state
     setIncomingFrom(null)
     setPendingCaller(null)
     incomingCallRef.current = null
@@ -494,6 +497,7 @@ export const SIPProvider = ({ children }) => {
       onIncomingCall: (session, caller) => {
         incomingCallRef.current = session
         setIncomingCall(session)
+        setSipSessionReady(true)    // FIX: set synchronously — enables Answer button immediately
         setIncomingFrom(caller)
         setPendingCaller(null)
         setSipInvitePending(false)
@@ -702,6 +706,7 @@ export const SIPProvider = ({ children }) => {
     incomingFrom,
     pendingCaller,
     sipInvitePending,
+    sipSessionReady,    // FIX: expose to consumers
     peerConnection,
     makeCall,
     answerCall,

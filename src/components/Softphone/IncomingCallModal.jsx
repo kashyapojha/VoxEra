@@ -14,6 +14,7 @@ const IncomingCallModal = () => {
     incomingFrom,
     pendingCaller,
     sipInvitePending,
+    sipSessionReady,    // FIX: use dedicated flag instead of deriving from incomingCall object
     registrationError,
     answerCall,
     rejectCall,
@@ -22,8 +23,11 @@ const IncomingCallModal = () => {
   if (!incomingCall && !pendingCaller) return null
 
   const caller = incomingFrom || pendingCaller || 'Unknown'
-  const sipReady = Boolean(incomingCall)
-  const waitingForSip = Boolean(pendingCaller && !incomingCall)
+
+  // FIX: sipSessionReady is set synchronously in onIncomingCall before React state async flush.
+  // This guarantees Answer is enabled the moment JsSIP delivers the session — no race condition.
+  const sipReady = sipSessionReady || Boolean(incomingCall)
+  const waitingForSip = Boolean(pendingCaller && !sipReady)
 
   return (
     <AnimatePresence>
