@@ -157,5 +157,34 @@ if ! grep -q '^aors=1001$' "$PJSIP_OUTPUT"; then
   exit 1
 fi
 
-echo "[asterisk] starting Asterisk (foreground)..."
-exec "$AST_BIN" -f -vvvg -c
+echo "[asterisk] starting Asterisk..."
+"$AST_BIN" -f -vvvg -c &
+ASTERISK_PID=$!
+
+# Wait for CLI, then reload PJSIP so objects load after res_pjsip registers types.
+cli_ready=0
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+  if "$AST_BIN" -rx "core show uptime" 2>/dev/null | grep -qi uptime; then
+    cli_ready=1
+    break
+  fi
+  sleep 2
+done
+
+if [ "$cli_ready" -eq 1 ]; then
+  "$AST_BIN" -rx "pjsip reload" 2>&1 || true
+  AOR_OUT="$("$AST_BIN" -rx "pjsip show aor 1001" 2>&1)" || AOR_OUT=""
+  EP_OUT="$("$AST_BIN" -rx "pjsip show endpoint 1001" 2>&1)" || EP_OUT=""
+  if printf '%s' "$AOR_OUT" | grep -qi 'Unable to find' || printf '%s' "$EP_OUT" | grep -qi 'Unable to find'; then
+    echo "[asterisk] WARNING: PJSIP 1001 not loaded after reload"
+    "$AST_BIN" -rx "module show like res_pjsip" 2>&1 || true
+    "$AST_BIN" -rx "pjsip show endpoints" 2>&1 || true
+  else
+    echo "[asterisk] PJSIP ready — endpoint 1001 + AOR 1001 loaded"
+  fi
+else
+  echo "[asterisk] WARNING: Asterisk CLI not ready within 30s"
+fi
+
+wait "$ASTERISK_PID"
+exit $?

@@ -179,9 +179,18 @@ AOR_OUT=""
 EP_OUT=""
 AST_HEALTH="starting"
 AST_UPTIME=""
+AST_RESTARTS=0
 for i in $(seq 1 60); do
   AST_HEALTH="$("${DOCKER[@]}" inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' voxera-asterisk 2>/dev/null || echo "missing")"
   AST_UPTIME="$("${DOCKER[@]}" inspect --format='{{.State.Status}} started={{.State.StartedAt}}' voxera-asterisk 2>/dev/null || echo "missing")"
+  AST_RESTARTS="$("${DOCKER[@]}" inspect --format='{{.RestartCount}}' voxera-asterisk 2>/dev/null || echo 0)"
+
+  if [ "${AST_RESTARTS:-0}" -gt 3 ]; then
+    echo "=== Asterisk crash-loop (${AST_RESTARTS} restarts) — container never stays up ==="
+    "${DOCKER[@]}" logs voxera-asterisk --tail 80 2>&1 || true
+    exit 1
+  fi
+
   AOR_OUT="$(docker_exec_asterisk asterisk -rx "pjsip show aor 1001" || true)"
   EP_OUT="$(docker_exec_asterisk asterisk -rx "pjsip show endpoint 1001" || true)"
   if pjsip_cli_ok "$AOR_OUT" && pjsip_cli_ok "$EP_OUT"; then
@@ -191,12 +200,13 @@ for i in $(seq 1 60); do
 
   if [ "$i" -eq 60 ]; then
     echo "=== Asterisk PJSIP not ready (docker health: ${AST_HEALTH}) ==="
-    echo "Container: ${AST_UPTIME}"
-    "${DOCKER[@]}" inspect voxera-asterisk --format='RestartCount={{.RestartCount}}' 2>/dev/null || true
+    echo "Container: ${AST_UPTIME} restarts=${AST_RESTARTS}"
     "${DOCKER[@]}" inspect voxera-asterisk --format='{{range .State.Health.Log}}{{.Output}}{{end}}' 2>/dev/null | tail -8 || true
     "${DOCKER[@]}" logs voxera-asterisk --tail 200 2>&1 || true
     docker_exec_asterisk cat /etc/asterisk/pjsip.conf 2>/dev/null | head -40 || true
+    echo "--- pjsip show aor 1001 ---"
     printf '%s\n' "$AOR_OUT"
+    echo "--- pjsip show endpoint 1001 ---"
     printf '%s\n' "$EP_OUT"
     docker_exec_asterisk asterisk -rx "pjsip show aors" || true
     docker_exec_asterisk asterisk -rx "pjsip show endpoints" || true
@@ -205,7 +215,13 @@ for i in $(seq 1 60); do
   fi
 
   if [ $((i % 10)) -eq 0 ]; then
-    echo "  ... still waiting (${i}/60, health=${AST_HEALTH})"
+    echo "  ... still waiting (${i}/60, health=${AST_HEALTH}, restarts=${AST_RESTARTS})"
+    if [ -n "$AOR_OUT" ]; then
+      printf '      aor: %s\n' "$(printf '%s' "$AOR_OUT" | head -1)"
+    fi
+    if [ -n "$EP_OUT" ]; then
+      printf '      ep:  %s\n' "$(printf '%s' "$EP_OUT" | head -1)"
+    fi
   fi
   sleep 3
 done
