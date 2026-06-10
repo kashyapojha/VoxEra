@@ -124,11 +124,23 @@ export async function notifyIncomingCall(caller) {
   }
 }
 
+/** Resume Web Audio after a user gesture (Chrome blocks ringtone until then). */
+export function bindAudioUnlockOnGesture() {
+  if (typeof window === 'undefined') return
+  const unlock = () => {
+    getAudioContext()
+    window.removeEventListener('pointerdown', unlock, true)
+    window.removeEventListener('keydown', unlock, true)
+  }
+  window.addEventListener('pointerdown', unlock, true)
+  window.addEventListener('keydown', unlock, true)
+}
+
 /** Call once after user registers so notifications work later */
 export function primeCallNotifications() {
-  if (typeof window === 'undefined' || !('Notification' in window)) return
-  if (Notification.permission === 'default') {
+  if (typeof window === 'undefined') return
+  if ('Notification' in window && Notification.permission === 'default') {
     Notification.requestPermission().catch(() => {})
   }
-  getAudioContext()
+  bindAudioUnlockOnGesture()
 }

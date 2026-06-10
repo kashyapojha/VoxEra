@@ -341,16 +341,18 @@ io.on('connection', async (socket) => {
     delete socket.data.sipExtension
   })
 
-  socket.on('call_ringing', (payload) => {
+  socket.on('call_ringing', async (payload) => {
     const callee = String(payload?.callee || '').trim()
     const caller = String(payload?.caller || 'Unknown').trim()
     if (!callee) return
-    io.to(`ext:${callee}`).emit('sip_incoming_alert', {
+    const room = `ext:${callee}`
+    const sockets = await io.in(room).fetchSockets()
+    io.to(room).emit('sip_incoming_alert', {
       id: getCallId(payload),
       caller,
       callee,
     })
-    console.info(`[SOCKET] Ring alert: ${caller} -> ext ${callee}`)
+    console.info(`[SOCKET] Ring alert: ${caller} -> ext ${callee} (${sockets.length} browser(s) listening)`)
   })
 
   socket.on('call_start', (payload) => {

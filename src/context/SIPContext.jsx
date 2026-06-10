@@ -17,6 +17,7 @@ import { env, parseSipUri, trimEnv, hostFromUrl, resolveSipPassword } from '../c
 import { useSocket } from './SocketContext'
 import {
   primeCallNotifications,
+  bindAudioUnlockOnGesture,
   stopAllCallAlerts,
   startIncomingRing,
   flashDocumentTitle,
@@ -97,11 +98,16 @@ export const SIPProvider = ({ children }) => {
   const disconnectTimerRef = useRef(null)
   const autoRegisterAttemptedRef = useRef(false)
   const extensionRef = useRef(extension)
+  const isRegisteredRef = useRef(isRegistered)
   const incomingCallRef = useRef(null)
 
   useEffect(() => {
     extensionRef.current = extension
   }, [extension])
+
+  useEffect(() => {
+    isRegisteredRef.current = isRegistered
+  }, [isRegistered])
 
   useEffect(() => {
     currentCallRef.current = currentCall
@@ -160,13 +166,24 @@ export const SIPProvider = ({ children }) => {
   }, [socket])
 
   // Tell backend which SIP extension this browser owns (for incoming-call alerts).
+  // Re-announce on socket connect — SIP often registers before Socket.io connects.
   useEffect(() => {
     if (!socket) return
-    if (isRegistered && extension) {
-      socket.emit('sip_online', { extension })
-      return () => socket.emit('sip_offline')
+
+    const announceSipOnline = () => {
+      const ext = extensionRef.current
+      if (!isRegisteredRef.current || !ext) return
+      socket.emit('sip_online', { extension: ext })
+      console.info(`[SIP] sip_online sent — ext ${ext} (socket ${socket.connected ? 'connected' : 'connecting'})`)
     }
-    socket.emit('sip_offline')
+
+    announceSipOnline()
+    socket.on('connect', announceSipOnline)
+
+    return () => {
+      socket.off('connect', announceSipOnline)
+      socket.emit('sip_offline')
+    }
   }, [socket, isRegistered, extension])
 
   // Socket alert when another extension is calling this one (before/without SIP INVITE UI).
@@ -174,7 +191,9 @@ export const SIPProvider = ({ children }) => {
     if (!socket) return
 
     const onIncomingAlert = ({ caller, callee }) => {
-      if (!caller || callee !== extensionRef.current) return
+      const myExt = String(extensionRef.current || '')
+      const targetExt = String(callee || '')
+      if (!caller || !targetExt || targetExt !== myExt) return
       if (incomingCallRef.current) return
       setPendingCaller(caller)
       startIncomingRing()
@@ -451,11 +470,13 @@ export const SIPProvider = ({ children }) => {
         })
         if (socket) {
           const id = getSessionCallId(session)
-          socket.emit('call_ringing', {
+          const payload = {
             id,
             caller: extensionRef.current || 'Unknown',
-            callee,
-          })
+            callee: String(callee || '').trim(),
+          }
+          socket.emit('call_ringing', payload)
+          console.info(`[SIP] call_ringing sent — ${payload.caller} → ext ${payload.callee}`)
         }
       },
       onProgress: (session) => {
@@ -558,9 +579,12 @@ export const SIPProvider = ({ children }) => {
 
   const rejectCall = useCallback(() => {
     const session = incomingCallRef.current || incomingCall
-    if (!session) return
     stopAllCallAlerts()
-    terminateSession(session)
+    if (session) {
+      terminateSession(session)
+      return
+    }
+    setPendingCaller(null)
   }, [incomingCall])
 
   const hangupCall = useCallback(() => {
@@ -591,6 +615,7 @@ export const SIPProvider = ({ children }) => {
   }, [currentCall])
 
   useEffect(() => {
+    bindAudioUnlockOnGesture()
     return () => {
       destroyUA(uaRef.current)
       clearInterval(callTimerRef.current)

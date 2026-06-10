@@ -9,11 +9,12 @@ import { Phone, PhoneOff } from 'lucide-react'
 import { useSip } from '../../context/SIPContext'
 
 const IncomingCallModal = () => {
-  const { incomingCall, incomingFrom, answerCall, rejectCall } = useSip()
+  const { incomingCall, incomingFrom, pendingCaller, answerCall, rejectCall } = useSip()
 
-  if (!incomingCall) return null
+  if (!incomingCall && !pendingCaller) return null
 
-  const caller = incomingFrom || 'Unknown'
+  const caller = incomingFrom || pendingCaller || 'Unknown'
+  const sipReady = Boolean(incomingCall)
 
   return (
     <AnimatePresence>
@@ -45,7 +46,9 @@ const IncomingCallModal = () => {
               <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Incoming Call</p>
               <p className="text-4xl font-mono font-light text-white">{caller}</p>
               <p className="text-sm text-gray-400 mt-1">is calling you...</p>
-              <p className="text-xs text-amber-400/90 mt-2">Ringing — click Answer to connect</p>
+              <p className="text-xs text-amber-400/90 mt-2">
+                {sipReady ? 'Click Answer to connect' : 'Connecting call — Answer will enable when ready'}
+              </p>
             </div>
 
             {/* Buttons */}
@@ -67,7 +70,8 @@ const IncomingCallModal = () => {
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.92 }}
                   onClick={answerCall}
-                  className="w-14 h-14 rounded-full bg-green-500 flex items-center justify-center hover:bg-green-600 transition-colors shadow-lg"
+                  disabled={!sipReady}
+                  className="w-14 h-14 rounded-full bg-green-500 flex items-center justify-center hover:bg-green-600 transition-colors shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Phone size={22} className="text-white" />
                 </motion.button>
