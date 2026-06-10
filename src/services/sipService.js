@@ -7,9 +7,9 @@
 import JsSIP from 'jssip'
 import { env, parseSipUri, trimEnv, hostFromUrl } from '../config/env'
 
-if (import.meta.env.DEV || import.meta.env.VITE_SIP_DEBUG === 'true') {
-  JsSIP.debug.enable('JsSIP:*')
-}
+JsSIP.debug.enable(
+  import.meta.env.DEV || import.meta.env.VITE_SIP_DEBUG === 'true' ? 'JsSIP:*' : 'JsSIP:Error'
+)
 
 const REGISTER_TIMEOUT_MS = 25_000
 

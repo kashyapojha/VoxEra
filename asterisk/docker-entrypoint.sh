@@ -7,6 +7,7 @@ if [ -z "$ASTERISK_EXTERNAL_IP" ]; then
   ASTERISK_EXTERNAL_IP="127.0.0.1"
 fi
 export ASTERISK_EXTERNAL_IP ASTERISK_WS_PORT
+# AOR id must match REGISTER To user@host. Section name must differ from [1001] endpoint.
 SIP_AOR_1001="1001@${ASTERISK_EXTERNAL_IP}"
 SIP_AOR_1002="1002@${ASTERISK_EXTERNAL_IP}"
 echo "[asterisk] ASTERISK_EXTERNAL_IP=${ASTERISK_EXTERNAL_IP} ASTERISK_WS_PORT=${ASTERISK_WS_PORT}"
@@ -33,12 +34,10 @@ for conf in extconfig.conf extensions.conf rtp.conf modules.conf sorcery.conf; d
   fi
 done
 
-# NEVER use two [1001] sections — Asterisk merges same-named categories; AOR is dropped.
-# Endpoint stays [1001] (REGISTER username match + Dial(PJSIP/1001)).
-# AOR uses unique id 1001@IP; endpoint aors= must match REGISTER To user@host.
 generate_pjsip_conf() {
   cat > "$PJSIP_OUTPUT" <<EOF
 ; WebRTC PJSIP — generated at container start
+; ONE [1001] endpoint block only. AOR uses unique id ${SIP_AOR_1001}.
 
 [global]
 type=global
@@ -76,7 +75,7 @@ from_domain=${ASTERISK_EXTERNAL_IP}
 disallow=all
 allow=opus,ulaw,alaw
 webrtc=yes
-identify_by=username,auth_username
+identify_by=auth_username,username
 force_rport=yes
 rewrite_contact=yes
 rtp_symmetric=yes
@@ -106,7 +105,7 @@ from_domain=${ASTERISK_EXTERNAL_IP}
 disallow=all
 allow=opus,ulaw,alaw
 webrtc=yes
-identify_by=username,auth_username
+identify_by=auth_username,username
 force_rport=yes
 rewrite_contact=yes
 rtp_symmetric=yes
@@ -123,6 +122,7 @@ servername=Asterisk
 enabled=yes
 bindaddr=0.0.0.0
 bindport=${ASTERISK_WS_PORT}
+tlsenable=no
 enable_status=yes
 
 [websocket]
@@ -133,13 +133,21 @@ EOF
 }
 
 verify_pjsip_runtime() {
+  HTTP_OUT="$("$AST_BIN" -rx "http show status" 2>&1)" || HTTP_OUT=""
   AOR_OUT="$("$AST_BIN" -rx "pjsip show aor ${SIP_AOR_1001}" 2>&1)" || AOR_OUT=""
   EP_OUT="$("$AST_BIN" -rx "pjsip show endpoint 1001" 2>&1)" || EP_OUT=""
   TP_OUT="$("$AST_BIN" -rx "pjsip show transport transport-wss" 2>&1)" || TP_OUT=""
   WS_OUT="$("$AST_BIN" -rx "module show like websocket" 2>&1)" || WS_OUT=""
   CHAN_OUT="$("$AST_BIN" -rx "module show like chan_sip" 2>&1)" || CHAN_OUT=""
 
+  echo "[asterisk] http show status:"
+  printf '%s\n' "$HTTP_OUT" | head -8
+
   ok=1
+  if ! printf '%s' "$HTTP_OUT" | grep -qi 'Enabled'; then
+    echo "[asterisk] FATAL: HTTP server not enabled (WebSocket /ws will not work)"
+    ok=0
+  fi
   if printf '%s' "$AOR_OUT" | grep -qi 'Unable to find'; then
     echo "[asterisk] FATAL: AOR ${SIP_AOR_1001} not loaded"
     ok=0
@@ -149,7 +157,7 @@ verify_pjsip_runtime() {
     ok=0
   fi
   if printf '%s' "$TP_OUT" | grep -qi 'Unable to find'; then
-    echo "[asterisk] FATAL: transport-wss not loaded"
+    echo "[asterisk] FATAL: transport-wss not loaded — WS connects but REGISTER gets no SIP reply"
     ok=0
   fi
   if ! printf '%s' "$WS_OUT" | grep -q 'res_http_websocket.so'; then
@@ -161,19 +169,22 @@ verify_pjsip_runtime() {
     ok=0
   fi
   if printf '%s' "$CHAN_OUT" | grep -q '1 modules loaded'; then
-    echo "[asterisk] FATAL: chan_sip is loaded"
+    echo "[asterisk] FATAL: chan_sip loaded — steals WebSocket signaling"
     ok=0
   fi
 
   if [ "$ok" -eq 0 ]; then
     echo "[asterisk] --- pjsip.conf ---"
-    sed -n '1,90p' "$PJSIP_OUTPUT" 2>/dev/null || true
-    echo "[asterisk] --- pjsip show aors ---"
-    "$AST_BIN" -rx "pjsip show aors" 2>&1 || true
+    cat "$PJSIP_OUTPUT" 2>/dev/null || true
+    echo "[asterisk] --- pjsip show transports ---"
+    "$AST_BIN" -rx "pjsip show transports" 2>&1 || true
     echo "[asterisk] --- pjsip show endpoints ---"
     "$AST_BIN" -rx "pjsip show endpoints" 2>&1 || true
+    echo "[asterisk] --- pjsip show aors ---"
+    "$AST_BIN" -rx "pjsip show aors" 2>&1 || true
     if [ -f /var/log/asterisk/messages ]; then
-      grep -iE 'error|pjsip|Could not find option|transport' /var/log/asterisk/messages 2>/dev/null | tail -30 || true
+      echo "[asterisk] --- recent log ---"
+      tail -40 /var/log/asterisk/messages 2>/dev/null || true
     fi
     return 1
   fi
@@ -185,11 +196,7 @@ verify_pjsip_runtime() {
 generate_pjsip_conf
 generate_http_conf
 
-echo "[asterisk] endpoint aors: $(grep '^aors=1001@' "$PJSIP_OUTPUT" | head -1)"
-if ! grep -q "^aors=${SIP_AOR_1001}$" "$PJSIP_OUTPUT"; then
-  echo "[asterisk] FATAL: missing aors=${SIP_AOR_1001}"
-  exit 1
-fi
+echo "[asterisk] generated aors line: $(grep '^aors=' "$PJSIP_OUTPUT" | head -1)"
 
 echo "[asterisk] starting Asterisk..."
 "$AST_BIN" -f -vvvg -c &
@@ -204,13 +211,23 @@ for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
   sleep 2
 done
 
-if [ "$cli_ready" -eq 1 ]; then
-  "$AST_BIN" -rx "module reload res_pjsip.so" 2>&1 | tail -2 || true
-  "$AST_BIN" -rx "pjsip reload" 2>&1 | tail -3 || true
-  sleep 3
-  verify_pjsip_runtime || true
-else
-  echo "[asterisk] WARNING: Asterisk CLI not ready within 30s"
+if [ "$cli_ready" -ne 1 ]; then
+  echo "[asterisk] FATAL: Asterisk CLI not ready within 30s"
+  kill "$ASTERISK_PID" 2>/dev/null || true
+  exit 1
+fi
+
+"$AST_BIN" -rx "module reload res_http_websocket.so" 2>&1 | tail -2 || true
+"$AST_BIN" -rx "module reload res_pjsip_transport_websocket.so" 2>&1 | tail -2 || true
+"$AST_BIN" -rx "module reload res_pjsip.so" 2>&1 | tail -2 || true
+"$AST_BIN" -rx "pjsip reload" 2>&1 | tail -3 || true
+sleep 4
+
+if ! verify_pjsip_runtime; then
+  echo "[asterisk] FATAL: PJSIP/WebSocket stack not ready — refusing to run broken SIP"
+  kill "$ASTERISK_PID" 2>/dev/null || true
+  wait "$ASTERISK_PID" 2>/dev/null || true
+  exit 1
 fi
 
 wait "$ASTERISK_PID"

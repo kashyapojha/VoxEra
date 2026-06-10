@@ -327,13 +327,6 @@ export const SIPProvider = ({ children }) => {
       },
     }
 
-    console.log('===== PASSWORD DEBUG =====')
-    console.log('password arg:', password)
-    console.log('sipConfig.password:', sipConfig.password)
-    console.log('env.sipPassword:', env.sipPassword)
-    console.log('final pass:', pass)
-    console.log('pass length:', pass?.length)
-
     const ua = createUA(callbacks, { websocketUrl, uri, password: pass })
     ua.start()
     uaRef.current = ua

@@ -74,10 +74,10 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "/usr/local/bin/asterisk-healthcheck.sh"]
-      interval: 15s
-      timeout: 15s
-      retries: 8
-      start_period: 120s
+      interval: 10s
+      timeout: 20s
+      retries: 12
+      start_period: 180s
     ports:
       - "${ASTERISK_WSS_PORT:-8089}:${ASTERISK_WSS_PORT:-8089}"
       - "${ASTERISK_SIP_PORT:-5060}:5060/udp"
