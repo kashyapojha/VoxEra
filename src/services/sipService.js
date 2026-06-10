@@ -51,9 +51,8 @@ export function createUA(callbacks, overrides = {}) {
   }
 
   // AoR URI (From/To) includes the extension — Asterisk matches AOR from the To header user.
-  // registrar_server must be domain-only (no user); JsSIP derives it from uri if omitted.
+  // JsSIP derives registrar/realm from uri; do not override registrar_server or realm.
   const normalizedUri = `sip:${authorizationUser}@${effectiveDomain}`
-  const registrarServer = `sip:${effectiveDomain}`
 
   const configuration = {
     sockets:            [socket],
@@ -61,8 +60,6 @@ export function createUA(callbacks, overrides = {}) {
     display_name:       authorizationUser,
     authorization_user: authorizationUser,
     password,
-    realm:              effectiveDomain,
-    registrar_server:   registrarServer,
     register:           true,
     session_timers:     false,
     register_expires:   300,
@@ -70,14 +67,7 @@ export function createUA(callbacks, overrides = {}) {
     connection_recovery_max_interval: 30,
   }
 
-  console.log('[SIP] register', {
-    uri: configuration.uri,
-    authUser: configuration.authorization_user,
-    realm: configuration.realm,
-    registrar: configuration.registrar_server,
-    websocket: websocketUrl,
-    passwordLength: configuration.password?.length,
-  })
+  console.log('FINAL SIP CONFIG', configuration)
 
   const extension = authorizationUser
   const ua = new JsSIP.UA(configuration)
