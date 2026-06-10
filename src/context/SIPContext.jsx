@@ -57,7 +57,7 @@ export const SIPProvider = ({ children }) => {
   const [isRegistered, setIsRegistered] = useState(false)
   const [isRegistering, setIsRegistering] = useState(false)
   const [registrationError, setRegistrationError] = useState(null)
-  const [extension, setExtension] = useState(() => localStorage.getItem('sip_ext') || '')
+  const [extension, setExtension] = useState('')
   const [connectionStatus, setConnectionStatus] = useState('disconnected')
   const [uaLive, setUaLive] = useState(false)
 
@@ -341,7 +341,9 @@ export const SIPProvider = ({ children }) => {
         setIsRegistering(false)
         setUaLive(false)
         setConnectionStatus('disconnected')
+        setExtension('')
         localStorage.removeItem('sip_registered')
+        localStorage.removeItem('sip_ext')
       },
       onRegistrationFailed: (detail) => {
         registerInProgressRef.current = false
@@ -349,17 +351,22 @@ export const SIPProvider = ({ children }) => {
         setIsRegistering(false)
         setUaLive(false)
         setConnectionStatus('disconnected')
+        const attemptedExt = trimEnv(ext) || extensionRef.current || parseSipUri(trimEnv(sipConfig.uri) || env.sipUri).extension
         let msg = `Registration failed: ${detail}`
         if (String(detail).startsWith('404')) {
-          msg += ' — Registrar AOR mismatch (server needs aors=1001 and AOR object 1001 loaded).'
+          msg += ` — Registrar AOR mismatch (server needs aors=${attemptedExt || 'ext'} and AOR object loaded).`
         } else if (String(detail).includes('Timeout')) {
           msg += ' — Asterisk may have sent 200 OK without binding contact (rebuild asterisk; check pjsip show contacts).'
         } else if (String(detail).startsWith('403')) {
           msg += ' — Forbidden (wrong password or endpoint not allowed to register).'
         } else if (String(detail).startsWith('401')) {
-          msg += ' — Digest auth failed (password must be 1001; server default_realm must match SIP URI host; ensure chan_sip is unloaded).'
+          msg += attemptedExt
+            ? ` — Digest auth failed for extension ${attemptedExt} (password is usually ${attemptedExt}; SIP URI host must match server realm; ensure chan_sip is unloaded).`
+            : ' — Digest auth failed (check extension password and that SIP URI host matches server realm).'
         } else if (String(detail).startsWith('500')) {
-          msg += ' — Server error (often auth object name mismatch: need auth=1001-auth on server).'
+          msg += attemptedExt
+            ? ` — Server error (often auth object name mismatch: need auth=${attemptedExt}-auth on server).`
+            : ' — Server error (check PJSIP auth object names on server).'
         }
         setRegistrationError(msg)
       },
@@ -442,8 +449,10 @@ export const SIPProvider = ({ children }) => {
     resetCallState()
     setIsRegistered(false)
     setIsRegistering(false)
+    setExtension('')
     setConnectionStatus('disconnected')
     localStorage.removeItem('sip_registered')
+    localStorage.removeItem('sip_ext')
     sessionStorage.removeItem('sip_pass')
     setUaLive(false)
   }, [resetCallState])

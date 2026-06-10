@@ -42,18 +42,43 @@ const Settings = () => {
     }
   }, [setSipConfig])
 
+  const parsedSip = parseSipUri(sipConfig.uri || env.sipUri)
+
   const handleSIPRegister = () => {
-    // Use Softphone extension (localStorage) — not baked VITE_SIP_URI (always 1001).
-    const ext = extension || localStorage.getItem('sip_ext') || parseSipUri(sipConfig.uri || env.sipUri).extension
-    const pass = sipConfig.password || env.sipPassword
-    const domain = hostFromUrl(sipConfig.websocket || env.sipWsUrl) || parseSipUri(sipConfig.uri || env.sipUri).domain
+    // SIP URI is the source of truth — stale localStorage sip_ext must not override it.
+    const ext =
+      parsedSip.extension ||
+      extension ||
+      localStorage.getItem('sip_ext') ||
+      env.sipExtension
+
+    const storedExt = localStorage.getItem('sip_ext')
+    const storedPass = sessionStorage.getItem('sip_pass')
+    let pass = (sipConfig.password || '').trim()
+    if (!pass && storedExt === ext && storedPass) {
+      pass = storedPass.trim()
+    }
+    if (!pass && ext === env.sipExtension) {
+      pass = (env.sipPassword || '').trim()
+    }
+    // Non-default extensions use extension-as-password on this PBX (1002 → 1002).
+    if (!pass && ext) {
+      pass = ext
+    }
+    if (ext && env.sipExtension && ext !== env.sipExtension && pass === env.sipPassword) {
+      pass = ext
+    }
+
+    const domain =
+      hostFromUrl(sipConfig.websocket || env.sipWsUrl) ||
+      parsedSip.domain ||
+      env.sipDomain
+
     if (!ext || !pass) {
       return
     }
     register(ext, pass, domain)
   }
-
-  const parsedSip = parseSipUri(sipConfig.uri || env.sipUri)
 
   const handleSIPUnregister = () => {
     unregister()
@@ -190,6 +215,16 @@ const Settings = () => {
                               : 'Not Registered'}
                     </span>
                   </div>
+                  {parsedSip.extension &&
+                    localStorage.getItem('sip_ext') &&
+                    localStorage.getItem('sip_ext') !== parsedSip.extension &&
+                    !isRegistered && (
+                    <p className="text-sm text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3">
+                      This browser last registered as{' '}
+                      <span className="font-mono">{localStorage.getItem('sip_ext')}</span>.
+                      Register will use <span className="font-mono">{parsedSip.extension}</span> from the SIP URI above.
+                    </p>
+                  )}
                   {registrationError && (
                     <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
                       {registrationError}

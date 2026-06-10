@@ -77,7 +77,7 @@ const Navbar = ({ onMenuClick, isMobileMenuOpen }) => {
               <span className="text-xs text-gray-400">Enterprise Communications</span>
             </div>
             <div className="flex items-center gap-2">
-              {extension && (
+              {isRegistered && extension && (
                 <span className="text-xs font-mono text-gray-400 hidden sm:inline">
                   ext {extension}
                 </span>
