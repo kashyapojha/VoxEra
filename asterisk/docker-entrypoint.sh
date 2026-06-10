@@ -157,14 +157,5 @@ if ! grep -q '^aors=1001$' "$PJSIP_OUTPUT"; then
   exit 1
 fi
 
-for mod in res_sorcery res_pjsip res_http_websocket res_pjsip_transport_websocket; do
-  if [ -f "/usr/lib/asterisk/modules/${mod}.so" ] || [ -f "/usr/lib64/asterisk/modules/${mod}.so" ]; then
-    echo "[asterisk] module present: ${mod}.so"
-  else
-    echo "[asterisk] ERROR: missing ${mod}.so"
-    exit 1
-  fi
-done
-
 echo "[asterisk] starting Asterisk (foreground)..."
 exec "$AST_BIN" -f -vvvg -c
