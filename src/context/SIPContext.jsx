@@ -80,6 +80,7 @@ export const SIPProvider = ({ children }) => {
   const prevBytesRef = useRef(0)
   const callStartTimeRef = useRef(null)
   const currentCallIdRef = useRef(null)
+  const connectedSessionRef = useRef(null)
   const extensionRef = useRef(extension)
 
   useEffect(() => {
@@ -202,6 +203,7 @@ export const SIPProvider = ({ children }) => {
   }, [])
 
   const resetCallState = useCallback(() => {
+    connectedSessionRef.current = null
     setCallStatus('idle')
     setCurrentCall(null)
     setIncomingCall(null)
@@ -210,6 +212,28 @@ export const SIPProvider = ({ children }) => {
     stopStatsPolling()
     setPeerConnection(null)
   }, [stopCallTimer, stopStatsPolling])
+
+  const markCallConnected = useCallback((session) => {
+    if (!session || connectedSessionRef.current === session) return
+    connectedSessionRef.current = session
+
+    setCurrentCall(session)
+    setCallStatus('connected')
+    setIncomingCall(null)
+    setIncomingFrom(null)
+    emitCallEstablish(session)
+
+    const pc = session.connection
+    if (pc) {
+      setPeerConnection(pc)
+      startStatsPolling(pc)
+    }
+
+    // Local timer fallback if socket sync is delayed (each SIP leg has its own Call-ID).
+    if (!callStartTimeRef.current) {
+      startCallTimer(Date.now())
+    }
+  }, [emitCallEstablish, startStatsPolling, startCallTimer])
 
   const register = useCallback((ext, password, domainOverride) => {
     const websocketUrl = trimEnv(sipConfig.websocket) || env.sipWsUrl
@@ -297,23 +321,24 @@ export const SIPProvider = ({ children }) => {
           status: 'calling',
         })
       },
-      onProgress: () => {
+      onProgress: (session) => {
         setCallStatus((prev) => (prev === 'incoming' ? prev : 'ringing'))
-      },
-      onAccepted: () => {},
-      onConfirmed: (session) => {
-        setCurrentCall(session)
-        setCallStatus('connected')
-        setIncomingCall(null)
-        setIncomingFrom(null)
-        emitCallEstablish(session)
-        // Timer starts when server broadcasts call_connected with shared connectedAt
-        const pc = session.connection
-        if (pc) {
-          setPeerConnection(pc)
-          startStatsPolling(pc)
+        if (socket && session) {
+          const id = getSessionCallId(session)
+          if (id) {
+            socket.emit('call_start', {
+              id,
+              caller: extensionRef.current || 'Unknown',
+              callee: session.remote_identity?.uri?.user || 'Unknown',
+              direction: session.direction === 'incoming' ? 'inbound' : 'outbound',
+              status: 'ringing',
+            })
+          }
         }
       },
+      onAccepted: (session) => markCallConnected(session),
+      onConfirmed: (session) => markCallConnected(session),
+      onMediaConnected: (session) => markCallConnected(session),
       onEnded: (session) => {
         emitCallEnd(session || currentCall, 'completed')
         resetCallState()
@@ -332,10 +357,10 @@ export const SIPProvider = ({ children }) => {
     uaRef.current = ua
   }, [
     emitCallStart,
-    emitCallEstablish,
     emitCallEnd,
+    markCallConnected,
     resetCallState,
-    startStatsPolling,
+    socket,
     currentCall,
     sipConfig.websocket,
     sipConfig.uri,
@@ -370,10 +395,7 @@ export const SIPProvider = ({ children }) => {
     if (!incomingCall) return
     sipAnswerCall(incomingCall)
     setCurrentCall(incomingCall)
-    setCallStatus('connected')
-    setIncomingCall(null)
-    setIncomingFrom(null)
-    // Do not start timer here — wait for onConfirmed + server call_connected
+    // connected state set by onAccepted / onConfirmed / onMediaConnected
   }, [incomingCall])
 
   const rejectCall = useCallback(() => {

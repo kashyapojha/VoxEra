@@ -166,12 +166,12 @@ export function createUA(callbacks, overrides = {}) {
 
     session.on('progress', (e) => {
       console.info(`[SIP] Session progress — ${e.response?.status_code}`)
-      callbacks.onProgress?.(e.response?.status_code)
+      callbacks.onProgress?.(session, e.response?.status_code)
     })
 
     session.on('accepted', () => {
-      console.info('[SIP] Session accepted')
-      callbacks.onAccepted?.()
+      console.info('[SIP] Session accepted (200 OK)')
+      callbacks.onAccepted?.(session)
     })
 
     session.on('confirmed', () => {
@@ -193,8 +193,16 @@ export function createUA(callbacks, overrides = {}) {
       const pc = e.peerconnection
       console.info('[SIP] PeerConnection created')
 
+      pc.addEventListener('connectionstatechange', () => {
+        console.info(`[SIP] PeerConnection state — ${pc.connectionState}`)
+        if (pc.connectionState === 'connected') {
+          callbacks.onMediaConnected?.(session)
+        }
+      })
+
       pc.addEventListener('track', (trackEvent) => {
         console.info('[SIP] Remote track received:', trackEvent.track.kind)
+        callbacks.onMediaConnected?.(session)
         if (trackEvent.streams && trackEvent.streams[0]) {
           const audioEl = document.getElementById('remoteAudio')
           if (audioEl) {
@@ -207,7 +215,7 @@ export function createUA(callbacks, overrides = {}) {
         }
       })
 
-      callbacks.onPeerConnection?.(pc)
+      callbacks.onPeerConnection?.(pc, session)
     })
   })
 

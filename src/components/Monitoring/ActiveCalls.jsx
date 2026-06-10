@@ -65,18 +65,18 @@ const ActiveCalls = () => {
 
   const mergedCalls = [...activeCalls]
 
-  if (currentCall && callStatus === 'connected') {
+  if (currentCall && callStatus !== 'idle') {
     const remote = currentCall.remote_identity?.uri?.user || 'Unknown'
     const callId = currentCall.request?.call_id || currentCall.id
     const idx = mergedCalls.findIndex(c => c.id === callId)
     const localEntry = {
       id: callId || 'local',
-      caller: remote,
-      callee: '',
+      caller: currentCall.direction === 'incoming' ? remote : (mergedCalls[idx]?.caller || remote),
+      callee: currentCall.direction === 'incoming' ? '' : remote,
       duration: callDuration,
-      connectedAt: null,
-      status: 'connected',
-      direction: 'outbound',
+      connectedAt: callStatus === 'connected' ? Date.now() - callDuration * 1000 : null,
+      status: callStatus,
+      direction: currentCall.direction === 'incoming' ? 'inbound' : 'outbound',
     }
     if (idx >= 0) {
       mergedCalls[idx] = { ...mergedCalls[idx], duration: mergedCalls[idx].duration ?? callDuration }
