@@ -97,7 +97,6 @@ export const SIPProvider = ({ children }) => {
   const registerSignatureRef = useRef('')
   const registerInProgressRef = useRef(false)
   const disconnectTimerRef = useRef(null)
-  const autoRegisterAttemptedRef = useRef(false)
   const extensionRef = useRef(extension)
   const isRegisteredRef = useRef(isRegistered)
   const socketRef = useRef(socket)
@@ -667,18 +666,6 @@ export const SIPProvider = ({ children }) => {
       clearInterval(statsTimerRef.current)
     }
   }, [])
-
-  // Re-register after refresh so Asterisk has a live WebSocket contact for this browser.
-  useEffect(() => {
-    if (autoRegisterAttemptedRef.current) return
-    autoRegisterAttemptedRef.current = true
-    const ext = localStorage.getItem('sip_ext')
-    const pass = sessionStorage.getItem('sip_pass')
-    if (ext && pass) {
-      console.info(`[SIP] Restoring registration for extension ${ext}`)
-      register(ext, pass)
-    }
-  }, [register])
 
   // Detect dead WebSocket while UI still shows registered.
   useEffect(() => {
