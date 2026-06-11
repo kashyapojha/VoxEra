@@ -15,7 +15,6 @@ const Navbar = ({ onMenuClick, isMobileMenuOpen }) => {
     extension,
     incomingCall,
     incomingFrom,
-    pendingCaller,
     answerCall,
     rejectCall,
   } = useSip()
@@ -38,36 +37,29 @@ const Navbar = ({ onMenuClick, isMobileMenuOpen }) => {
 
   return (
     <>
-    {(incomingCall || pendingCaller) && (
+    {incomingCall && (
       <div className="sticky top-0 z-[100] bg-green-600/95 border-b border-green-400/40 px-4 py-2 flex items-center justify-between gap-3">
         <p className="text-sm text-white font-medium truncate">
           Incoming call from{' '}
-          <span className="font-mono">{incomingFrom || pendingCaller || 'Unknown'}</span>
-          {pendingCaller && !incomingCall && (
-            <span className="text-green-100/80"> — connecting…</span>
-          )}
+          <span className="font-mono">{incomingFrom || 'Unknown'}</span>
         </p>
-        {incomingCall ? (
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={rejectCall}
-              className="p-2 rounded-full bg-red-500 hover:bg-red-600 text-white"
-              aria-label="Decline call"
-            >
-              <PhoneOff size={18} />
-            </button>
-            <button
-              type="button"
-              onClick={answerCall}
-              className="px-3 py-1.5 rounded-full bg-white text-green-700 text-sm font-semibold hover:bg-green-50"
-            >
-              Answer
-            </button>
-          </div>
-        ) : (
-          <span className="text-xs text-green-100 shrink-0">Open Softphone to answer</span>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={rejectCall}
+            className="p-2 rounded-full bg-red-500 hover:bg-red-600 text-white"
+            aria-label="Decline call"
+          >
+            <PhoneOff size={18} />
+          </button>
+          <button
+            type="button"
+            onClick={answerCall}
+            className="px-3 py-1.5 rounded-full bg-white text-green-700 text-sm font-semibold hover:bg-green-50"
+          >
+            Answer
+          </button>
+        </div>
       </div>
     )}
     <nav className="glass border-b border-white/10 px-6 py-4 sticky top-0 z-50">

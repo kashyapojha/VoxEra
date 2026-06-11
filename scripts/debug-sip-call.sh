@@ -36,8 +36,19 @@ echo ""
 $C asterisk -rx "pjsip show contacts" 2>/dev/null || true
 echo ""
 
-echo "=== 3. Dialplan (must show _10XX + Ringing + Dial) ==="
-$C asterisk -rx "dialplan show internal" 2>/dev/null | head -25 || true
+echo "=== 3. Dialplan (must show _10XX + Dial(PJSIP/\${EXTEN}@\${EXTEN},30,r)) ==="
+DIALPLAN="$($C asterisk -rx "dialplan show internal" 2>/dev/null | head -25 || true)"
+echo "$DIALPLAN"
+if printf '%s' "$DIALPLAN" | grep -q '_10XX'; then
+  echo "OK: wildcard _10XX dialplan loaded"
+else
+  echo "FAIL: stale dialplan — run: bash scripts/rebuild-asterisk-ec2.sh"
+fi
+if printf '%s' "$DIALPLAN" | grep -q 'Dial(PJSIP/\${EXTEN}@\${EXTEN}'; then
+  echo "OK: explicit endpoint Dial(PJSIP/ext@ext)"
+else
+  echo "FAIL: need Dial(PJSIP/\${EXTEN}@\${EXTEN},30,r) — run: bash scripts/rebuild-asterisk-ec2.sh"
+fi
 echo ""
 
 echo "=== 4. Transport ==="

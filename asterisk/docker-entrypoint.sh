@@ -108,14 +108,14 @@ type=aor
 max_contacts=1
 remove_existing=yes
 qualify_frequency=0
-support_path=no
+support_path=yes
 
 [1002]
 type=aor
 max_contacts=1
 remove_existing=yes
 qualify_frequency=0
-support_path=no
+support_path=yes
 EOF
 
   cat > "${PJSIP_DIR}/pjsip.endpoint.conf" <<EOF
@@ -192,6 +192,19 @@ EOF
     strip_crlf < "${PJSIP_DIR}/${f}" > "/tmp/${f}"
     mv "/tmp/${f}" "${PJSIP_DIR}/${f}"
   done
+}
+
+generate_extensions_conf() {
+  cat > "${PJSIP_DIR}/extensions.conf" <<'EOF'
+[internal]
+
+; r = only send 180 to caller when callee endpoint is actually ringing (not fake early ring).
+exten => _10XX,1,NoOp(Call ${EXTEN} from ${CALLERID(num)})
+ same => n,Dial(PJSIP/${EXTEN}@${EXTEN},30,r)
+ same => n,Hangup()
+EOF
+  strip_crlf < "${PJSIP_DIR}/extensions.conf" > /tmp/extensions.conf
+  mv /tmp/extensions.conf "${PJSIP_DIR}/extensions.conf"
 }
 
 generate_http_conf() {
@@ -292,12 +305,29 @@ verify_pjsip_runtime() {
     return 1
   fi
 
-  echo "[asterisk] PJSIP ready — AOR 1001 + endpoint 1001 + transport-wss + contact=memory"
+  DIAL_OUT="$("$AST_BIN" -rx "dialplan show internal" 2>&1)" || DIAL_OUT=""
+  if ! printf '%s' "$DIAL_OUT" | grep -q '_10XX'; then
+    echo "[asterisk] FATAL: dialplan must use _10XX pattern (got stale per-extension Dial?)"
+    ok=0
+  fi
+  if ! printf '%s' "$DIAL_OUT" | grep -q 'Dial(PJSIP/\${EXTEN}@\${EXTEN}'; then
+    echo "[asterisk] FATAL: dialplan must Dial(PJSIP/\${EXTEN}@\${EXTEN},30,r)"
+    ok=0
+  fi
+
+  if [ "$ok" -eq 0 ]; then
+    echo "[asterisk] --- extensions.conf ---"
+    cat "${PJSIP_DIR}/extensions.conf" 2>/dev/null || true
+    return 1
+  fi
+
+  echo "[asterisk] PJSIP ready — AOR 1001 + endpoint 1001 + transport-wss + contact=memory + dialplan _10XX"
   return 0
 }
 
 generate_sorcery_conf
 generate_pjsip_configs
+generate_extensions_conf
 generate_http_conf
 validate_config_files
 

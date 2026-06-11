@@ -244,7 +244,6 @@ export const SIPProvider = ({ children }) => {
       const targetExt = String(callee || '')
       if (!caller || !targetExt || targetExt !== myExt) return
       if (incomingCallRef.current) return
-      if (pendingCallerRef.current === caller) return
 
       const ua = uaRef.current
       const sipLive = Boolean(ua?.isConnected?.() && ua?.isRegistered?.())
@@ -253,14 +252,9 @@ export const SIPProvider = ({ children }) => {
         return
       }
 
-      setRegistrationError(null)
-      pendingCallerRef.current = caller
-      setPendingCaller(caller)
-      setSipInvitePending(true)
-      startIncomingRing()
-      flashDocumentTitle(`Call from ${caller}`)
+      // Heads-up only — Answer UI opens when JsSIP delivers the real INVITE (onIncomingCall).
       notifyIncomingCall(caller)
-      console.info(`[SIP] Socket incoming alert — ${caller} → ext ${callee} (waiting for SIP INVITE…)`)
+      console.info(`[SIP] Socket heads-up — ${caller} → ext ${callee} (SIP INVITE should follow)`)
     }
 
     const onCallEnded = () => {
@@ -291,22 +285,6 @@ export const SIPProvider = ({ children }) => {
       socket.off('sip_owner_lost', onSipOwnerLost)
     }
   }, [socket])
-
-  // Socket alert arrived but SIP INVITE never showed — usually stale tab or Asterisk contact.
-  useEffect(() => {
-    if (!sipInvitePending || incomingCall) return undefined
-    const id = setTimeout(() => {
-      if (incomingCallRef.current) return
-      const ua = uaRef.current
-      const sipLive = Boolean(ua?.isConnected?.() && ua?.isRegistered?.())
-      if (!sipLive || !isSipOwnerRef.current) return
-      console.warn('[SIP] SIP INVITE not received within 10s on owner tab')
-      setRegistrationError(
-        'SIP INVITE not received on this tab — close every other tab for this extension, then Softphone → Unregister → Register once'
-      )
-    }, 10000)
-    return () => clearTimeout(id)
-  }, [sipInvitePending, incomingCall])
 
   // Server-authoritative connected time — keeps both ends in sync
   useEffect(() => {

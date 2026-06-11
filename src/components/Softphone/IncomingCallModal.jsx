@@ -1,7 +1,6 @@
 /**
  * IncomingCallModal.jsx
- * Shows when an incoming SIP call arrives.
- * Uses SipContext — not useSip from hooks folder.
+ * Shows only when JsSIP has delivered a real SIP session — Answer is always enabled.
  */
 
 import { motion, AnimatePresence } from 'framer-motion'
@@ -9,25 +8,11 @@ import { Phone, PhoneOff } from 'lucide-react'
 import { useSip } from '../../context/SIPContext'
 
 const IncomingCallModal = () => {
-  const {
-    incomingCall,
-    incomingFrom,
-    pendingCaller,
-    sipInvitePending,
-    sipSessionReady,    // FIX: use dedicated flag instead of deriving from incomingCall object
-    registrationError,
-    answerCall,
-    rejectCall,
-  } = useSip()
+  const { incomingCall, incomingFrom, answerCall, rejectCall } = useSip()
 
-  if (!incomingCall && !pendingCaller) return null
+  if (!incomingCall) return null
 
-  const caller = incomingFrom || pendingCaller || 'Unknown'
-
-  // FIX: sipSessionReady is set synchronously in onIncomingCall before React state async flush.
-  // This guarantees Answer is enabled the moment JsSIP delivers the session — no race condition.
-  const sipReady = sipSessionReady || Boolean(incomingCall)
-  const waitingForSip = Boolean(pendingCaller && !sipReady)
+  const caller = incomingFrom || incomingCall.remote_identity?.uri?.user || 'Unknown'
 
   return (
     <AnimatePresence>
@@ -46,7 +31,6 @@ const IncomingCallModal = () => {
         >
           <div className="flex flex-col items-center gap-6">
 
-            {/* Pulsing avatar */}
             <div className="relative">
               <div className="w-20 h-20 rounded-full bg-gradient-primary flex items-center justify-center">
                 <Phone size={36} className="text-white" />
@@ -54,28 +38,13 @@ const IncomingCallModal = () => {
               <span className="absolute inset-0 rounded-full bg-gradient-primary opacity-30 animate-ping" />
             </div>
 
-            {/* Caller info */}
             <div>
               <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Incoming Call</p>
               <p className="text-4xl font-mono font-light text-white">{caller}</p>
               <p className="text-sm text-gray-400 mt-1">is calling you...</p>
-              <p className="text-xs text-amber-400/90 mt-2">
-                {sipReady
-                  ? 'Click Answer to connect'
-                  : 'Waiting for SIP — Answer enables when this tab receives the call'}
-              </p>
-              {waitingForSip && sipInvitePending && (
-                <p className="text-xs text-red-300/90 mt-2 max-w-xs mx-auto">
-                  Close other browser tabs using this extension, then Unregister → Register on{' '}
-                  <span className="font-mono">this tab only</span>.
-                </p>
-              )}
-              {registrationError && waitingForSip && (
-                <p className="text-xs text-red-400/90 mt-2 max-w-xs mx-auto">{registrationError}</p>
-              )}
+              <p className="text-xs text-green-400/90 mt-2">Click Answer to connect</p>
             </div>
 
-            {/* Buttons */}
             <div className="flex gap-10">
               <div className="flex flex-col items-center gap-2">
                 <motion.button
@@ -94,8 +63,7 @@ const IncomingCallModal = () => {
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.92 }}
                   onClick={answerCall}
-                  disabled={!sipReady}
-                  className="w-14 h-14 rounded-full bg-green-500 flex items-center justify-center hover:bg-green-600 transition-colors shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-14 h-14 rounded-full bg-green-500 flex items-center justify-center hover:bg-green-600 transition-colors shadow-lg animate-pulse"
                 >
                   <Phone size={22} className="text-white" />
                 </motion.button>
