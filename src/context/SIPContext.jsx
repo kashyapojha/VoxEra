@@ -497,6 +497,10 @@ export const SIPProvider = ({ children }) => {
         localStorage.setItem('sip_registered', 'true')
         primeCallNotifications()
         console.info(`[SIP] Extension ${registeredExt} ready to receive calls on this browser`)
+        console.info(
+          `[SIP] Server check — while this tab stays open, run on EC2: ` +
+          `docker exec voxera-asterisk asterisk -rx "pjsip show contacts" (must list ${registeredExt}/sip:${registeredExt}@...)`
+        )
       },
       onUnregistered: () => {
         registerInProgressRef.current = false

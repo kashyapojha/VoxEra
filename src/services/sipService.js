@@ -5,7 +5,7 @@
  */
 
 import JsSIP from 'jssip'
-import { env, parseSipUri, trimEnv, hostFromUrl, portFromUrl } from '../config/env'
+import { env, parseSipUri, trimEnv, hostFromUrl } from '../config/env'
 
 JsSIP.debug.enable(
   import.meta.env.DEV || import.meta.env.VITE_SIP_DEBUG === 'true' ? 'JsSIP:*' : 'JsSIP:Error'
@@ -181,12 +181,9 @@ export function createUA(callbacks, overrides = {}) {
   // AoR URI (From/To) includes the extension — Asterisk matches AOR from the To header user.
   // JsSIP derives registrar/realm from uri; do not override registrar_server or realm.
   const normalizedUri = `sip:${authorizationUser}@${effectiveDomain}`
-  const wsPort = portFromUrl(websocketUrl) || '8089'
-  // Explicit Contact host:port so Asterisk routes INVITE back over WebSocket (not .invalid UDP).
-  const contactHost = wsPort === '80' || wsPort === '443'
-    ? effectiveDomain
-    : `${effectiveDomain}:${wsPort}`
-  const contactUri = `sip:${authorizationUser}@${contactHost}`
+  // REGISTER Contact: public SIP domain + ws transport — not Asterisk's :8089 listen port (that is
+  // the server, not the browser). rewrite_contact on the endpoint maps this to the live WebSocket.
+  const contactUri = `sip:${authorizationUser}@${effectiveDomain};transport=ws`
 
   const configuration = {
     sockets:            [socket],

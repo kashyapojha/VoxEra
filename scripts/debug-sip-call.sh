@@ -33,7 +33,23 @@ $C asterisk -rx "pjsip show aor 1001" 2>/dev/null || true
 echo ""
 $C asterisk -rx "pjsip show aor 1002" 2>/dev/null || true
 echo ""
-$C asterisk -rx "pjsip show contacts" 2>/dev/null || true
+CONTACTS="$($C asterisk -rx "pjsip show contacts" 2>/dev/null || true)"
+echo "$CONTACTS"
+if printf '%s' "$CONTACTS" | grep -qi 'No objects found'; then
+  echo ""
+  echo "FAIL: No SIP contacts registered — Asterisk cannot deliver INVITEs."
+  echo "  → Register 1001 and 1002 in the browser FIRST, then re-run:"
+  echo "     docker exec voxera-asterisk asterisk -rx \"pjsip show contacts\""
+  echo "  → Or watch live: bash scripts/watch-sip-contacts.sh"
+  echo "  → If browsers show Registered but contacts stay empty, rebuild frontend:"
+  echo "     bash scripts/rebuild-frontend-ec2.sh"
+elif printf '%s' "$CONTACTS" | grep -q '1001/' && printf '%s' "$CONTACTS" | grep -q '1002/'; then
+  echo "OK: both 1001 and 1002 have contacts"
+elif printf '%s' "$CONTACTS" | grep -qE '100[12]/'; then
+  echo "WARN: only one extension registered — register the other browser too"
+else
+  echo "WARN: contacts present but format unexpected — check for extension IDs (not random strings)"
+fi
 echo ""
 
 echo "=== 3. Dialplan (must show _10XX + Dial(PJSIP/\${EXTEN}@\${EXTEN},30,r)) ==="
