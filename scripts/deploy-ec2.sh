@@ -125,6 +125,31 @@ pjsip_cli_ok() {
     && ! printf '%s' "$out" | grep -qi 'No objects found'
 }
 
+# Fixed container_name values in docker-compose.prod.yml — must be removed before recreate.
+VOXERA_CONTAINERS=(voxera-backend voxera-frontend voxera-postgres voxera-asterisk)
+
+remove_old_containers() {
+  echo "[deploy] Stopping compose stack (volumes preserved)..."
+  "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml down --remove-orphans 2>/dev/null || true
+
+  local c
+  for c in "${VOXERA_CONTAINERS[@]}"; do
+    if "${DOCKER[@]}" container inspect "$c" &>/dev/null; then
+      echo "[deploy] Force-removing stale container: $c"
+      "${DOCKER[@]}" rm -f "$c" 2>/dev/null || true
+    fi
+  done
+
+  # Orphans from docker-compose.yml (no container_name → voxera-backend-1, etc.)
+  while IFS= read -r c; do
+    [ -z "$c" ] && continue
+    echo "[deploy] Force-removing orphan container: $c"
+    "${DOCKER[@]}" rm -f "$c" 2>/dev/null || true
+  done < <("${DOCKER[@]}" ps -a --format '{{.Names}}' | grep -E '^voxera-(backend|frontend|postgres|asterisk)-[0-9]+$' || true)
+}
+
+remove_old_containers
+
 echo "[deploy] Pulling backend + postgres images..."
 time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml pull backend postgres
 
@@ -134,12 +159,8 @@ time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml build
   --build-arg "CONFIG_REVISION=${IMAGE_TAG}" \
   --no-cache frontend asterisk
 
-echo "[deploy] Starting containers (recreate asterisk + frontend)..."
-if ! time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml up -d --remove-orphans --force-recreate asterisk frontend; then
-  echo "=== asterisk/frontend recreate failed ==="
-  exit 1
-fi
-if ! time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml up -d --remove-orphans; then
+echo "[deploy] Starting all containers..."
+if ! time "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml up -d --remove-orphans --force-recreate; then
   echo "=== docker compose up failed ==="
   "${COMPOSE[@]}" --env-file "$APP_DIR/.env" -f docker-compose.prod.yml ps -a || true
   for c in voxera-backend voxera-frontend voxera-postgres voxera-asterisk; do
