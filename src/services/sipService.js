@@ -30,84 +30,19 @@ console.info('[SIP] VoxEra sipService loaded', {
 const wiredSessions = new WeakSet()
 const wiredPeerConnections = new WeakSet()
 
-const ICE_GATHER_TIMEOUT_MS = 2000
-
-let cachedLocalAudioStream = null
+const ICE_GATHER_TIMEOUT_MS = 2500
 
 const defaultCallOptions = {
   mediaConstraints: { audio: true, video: false },
   pcConfig: {
-    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+    ],
     iceCandidatePoolSize: 0,
-    bundlePolicy: 'max-bundle',
-    rtcpMuxPolicy: 'require',
   },
   rtcOfferConstraints: { offerToReceiveAudio: true, offerToReceiveVideo: false },
   sessionTimersExpires: 0,
-}
-
-/** Browsers block microphone on http:// (non-localhost) — calls need HTTPS or localhost. */
-export function getMediaAccessError() {
-  if (typeof window === 'undefined') return null
-  if (!window.RTCPeerConnection) {
-    return 'WebRTC is not supported in this browser'
-  }
-  if (!window.isSecureContext) {
-    const host = window.location.hostname
-    const isLocal = host === 'localhost' || host === '127.0.0.1'
-    if (!isLocal) {
-      return (
-        'Microphone requires HTTPS. Open https://' + host +
-        ' (accept the certificate warning), allow the mic, then Register and call again.'
-      )
-    }
-  }
-  if (!navigator.mediaDevices?.getUserMedia) {
-    return 'Microphone API unavailable — use Chrome/Edge/Firefox over HTTPS'
-  }
-  return null
-}
-
-export async function ensureLocalAudioStream() {
-  const blocked = getMediaAccessError()
-  if (blocked) throw new Error(blocked)
-
-  if (cachedLocalAudioStream?.active) {
-    return cachedLocalAudioStream
-  }
-
-  console.info('[SIP] Requesting microphone access…')
-  try {
-    cachedLocalAudioStream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: false,
-    })
-    console.info('[SIP] Microphone ready')
-    return cachedLocalAudioStream
-  } catch (err) {
-    cachedLocalAudioStream = null
-    const name = err?.name || 'Error'
-    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-      throw new Error('Microphone permission denied — click Allow in the browser address bar')
-    }
-    if (name === 'NotFoundError') {
-      throw new Error('No microphone found — plug in a mic or check system settings')
-    }
-    throw new Error(`Microphone error (${name}): ${err?.message || 'unknown'}`)
-  }
-}
-
-export function primeMicrophone() {
-  return ensureLocalAudioStream().catch((err) => {
-    console.warn('[SIP] Microphone prime failed:', err.message)
-    return null
-  })
-}
-
-export function releaseLocalAudioStream() {
-  if (!cachedLocalAudioStream) return
-  cachedLocalAudioStream.getTracks().forEach((t) => t.stop())
-  cachedLocalAudioStream = null
 }
 
 function playRemoteAudio(stream) {
@@ -153,36 +88,6 @@ function bindPeerConnection(pc, session, callbacks) {
   }
 
   callbacks.onPeerConnection?.(pc, session)
-  armIceGatherFallback(pc, session)
-}
-
-function armIceGatherFallback(pc, session) {
-  if (!pc || pc.__voxeraIceArm) return
-  pc.__voxeraIceArm = true
-
-  let iceReadyFn = null
-  let fired = false
-
-  const finishIce = (reason) => {
-    if (fired) return
-    fired = true
-    clearTimeout(timerId)
-    if (typeof iceReadyFn === 'function') {
-      console.info(`[SIP] ICE gather done (${reason}) — proceeding to INVITE`)
-      iceReadyFn()
-    }
-  }
-
-  const timerId = setTimeout(() => finishIce('timeout'), ICE_GATHER_TIMEOUT_MS)
-
-  session.on('icecandidate', (data) => {
-    if (data?.ready) iceReadyFn = data.ready
-    if (!data?.candidate) finishIce('complete')
-  })
-
-  pc.addEventListener('icegatheringstatechange', () => {
-    if (pc.iceGatheringState === 'complete') finishIce('gathering-complete')
-  })
 }
 
 function attachSessionHandlers(session, callbacks) {
@@ -227,8 +132,22 @@ function attachSessionHandlers(session, callbacks) {
     callbacks.onFailed?.(session, 'getUserMediaFailed')
   })
 
-  session.on('connecting', () => {
-    console.info('[SIP] Session connecting — building SDP / requesting media')
+  // JsSIP waits for ICE gathering before sending INVITE — timeout so calls don't hang forever.
+  let iceGatherTimeoutId = null
+  let iceReadyFn = null
+  session.on('icecandidate', (data) => {
+    if (data?.ready) iceReadyFn = data.ready
+    if (!iceGatherTimeoutId) {
+      iceGatherTimeoutId = setTimeout(() => {
+        console.info(`[SIP] ICE gathering timeout (${ICE_GATHER_TIMEOUT_MS}ms) — sending INVITE`)
+        iceReadyFn?.()
+      }, ICE_GATHER_TIMEOUT_MS)
+    }
+    if (!data?.candidate) {
+      clearTimeout(iceGatherTimeoutId)
+      iceGatherTimeoutId = null
+      data?.ready?.()
+    }
   })
 
   session.on('peerconnection:createofferfailed', (e) => {
@@ -424,25 +343,20 @@ export function getUaSipDomain(ua) {
   return hostFromUrl(SIP_WS) || SIP_DOMAIN
 }
 
-export async function makeCall(ua, target, domain) {
+export function makeCall(ua, target, domain) {
   if (!ua) throw new Error('UA not initialized')
 
   const callDomain = domain || getUaSipDomain(ua)
   const targetURI = `sip:${target}@${callDomain}`
 
-  const mediaStream = await ensureLocalAudioStream()
   console.info(`[SIP] Calling ${targetURI}`)
-  const session = ua.call(targetURI, {
-    ...defaultCallOptions,
-    mediaStream,
-  })
+  const session = ua.call(targetURI, { ...defaultCallOptions })
   return session
 }
 
-export async function answerCall(session) {
+export function answerCall(session) {
   if (!session) return
-  const mediaStream = await ensureLocalAudioStream()
-  session.answer({ ...defaultCallOptions, mediaStream })
+  session.answer({ ...defaultCallOptions })
   console.info('[SIP] Call answered')
 }
 
@@ -461,7 +375,6 @@ export function destroyUA(ua) {
   try {
     // Always stop — even if isRegistered() is stale after another tab took the contact.
     ua.stop()
-    releaseLocalAudioStream()
     console.info('[SIP] UA stopped')
   } catch (e) {
     console.warn('[SIP] UA stop error:', e)

@@ -4,10 +4,10 @@ ARG CONFIG_REVISION=12
 RUN echo "asterisk config revision: ${CONFIG_REVISION}"
 
 RUN if command -v apk >/dev/null 2>&1; then \
-      apk add --no-cache wget curl findutils openssl; \
+      apk add --no-cache wget curl findutils; \
     else \
       apt-get update && \
-      apt-get install -y --no-install-recommends wget curl findutils openssl && \
+      apt-get install -y --no-install-recommends wget curl findutils && \
       rm -rf /var/lib/apt/lists/*; \
     fi
 

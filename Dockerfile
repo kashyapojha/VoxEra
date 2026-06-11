@@ -19,22 +19,15 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# ── Stage 2: Serve with Nginx (HTTPS — required for WebRTC getUserMedia) ──
+# ── Stage 2: Serve with Nginx ──
 FROM nginx:alpine
-
-RUN apk add --no-cache openssl && \
-    mkdir -p /etc/nginx/ssl && \
-    openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
-      -keyout /etc/nginx/ssl/key.pem \
-      -out /etc/nginx/ssl/cert.pem \
-      -subj "/CN=voxera.local/O=VoxEra"
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx/nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 80 443
+EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget --no-check-certificate -qO- https://127.0.0.1/ || exit 1
+  CMD wget -qO- http://127.0.0.1/ || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]
