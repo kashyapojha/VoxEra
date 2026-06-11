@@ -413,14 +413,6 @@ io.on('connection', async (socket) => {
       callObj.status = payload.status || callObj.status
     }
 
-    if (callObj.direction === 'outbound' && callObj.callee && callObj.callee !== 'Unknown') {
-      emitIncomingAlert(callObj.callee, {
-        id,
-        caller: callObj.caller,
-        callee: callObj.callee,
-      })
-    }
-
     console.info(`[SOCKET] Call Start: ${callObj.caller} -> ${callObj.callee} [${callObj.status}]`)
     broadcastActiveCalls()
   })

@@ -70,6 +70,8 @@ type=global
 endpoint_identifier_order=auth_username,username
 default_realm=${ASTERISK_EXTERNAL_IP}
 dtls_auto_generate_cert=yes
+send_contact_status_on_update_registration=yes
+contact_expiration_check_interval=30
 EOF
 
   cat > "${PJSIP_DIR}/pjsip.transport.conf" <<EOF
@@ -79,6 +81,9 @@ protocol=ws
 bind=0.0.0.0:${ASTERISK_WS_PORT}
 external_signaling_address=${ASTERISK_EXTERNAL_IP}
 external_media_address=${ASTERISK_EXTERNAL_IP}
+local_net=10.0.0.0/8
+local_net=172.16.0.0/12
+local_net=192.168.0.0/16
 EOF
 
   cat > "${PJSIP_DIR}/pjsip.auth.conf" <<EOF
@@ -103,14 +108,14 @@ type=aor
 max_contacts=1
 remove_existing=yes
 qualify_frequency=0
-support_path=yes
+support_path=no
 
 [1002]
 type=aor
 max_contacts=1
 remove_existing=yes
 qualify_frequency=0
-support_path=yes
+support_path=no
 EOF
 
   cat > "${PJSIP_DIR}/pjsip.endpoint.conf" <<EOF
@@ -125,6 +130,10 @@ from_domain=${ASTERISK_EXTERNAL_IP}
 disallow=all
 allow=opus,ulaw,alaw
 webrtc=yes
+media_encryption=dtls
+dtls_verify=fingerprint
+dtls_setup=actpass
+ice_support=yes
 media_use_received_transport=yes
 rtcp_mux=yes
 use_avpf=yes
@@ -151,6 +160,10 @@ from_domain=${ASTERISK_EXTERNAL_IP}
 disallow=all
 allow=opus,ulaw,alaw
 webrtc=yes
+media_encryption=dtls
+dtls_verify=fingerprint
+dtls_setup=actpass
+ice_support=yes
 media_use_received_transport=yes
 rtcp_mux=yes
 use_avpf=yes

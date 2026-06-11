@@ -16,6 +16,19 @@ export function hostFromUrl(url) {
   }
 }
 
+export function portFromUrl(url) {
+  if (!url) return ''
+  try {
+    const parsed = new URL(url)
+    if (parsed.port) return parsed.port
+    if (parsed.protocol === 'wss:') return '443'
+    if (parsed.protocol === 'ws:') return '80'
+    return ''
+  } catch {
+    return ''
+  }
+}
+
 export function trimEnv(value) {
   return typeof value === 'string' ? value.trim().replace(/^["']|["']$/g, '') : ''
 }

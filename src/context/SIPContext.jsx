@@ -114,6 +114,8 @@ export const SIPProvider = ({ children }) => {
   const isRegisteredRef = useRef(isRegistered)
   const socketRef = useRef(socket)
   const incomingCallRef = useRef(null)
+  const pendingCallerRef = useRef(null)
+  const socketAlertSentRef = useRef(false)
   const sipTabIdRef = useRef(getSipTabId())
   const isSipOwnerRef = useRef(false)
 
@@ -150,15 +152,11 @@ export const SIPProvider = ({ children }) => {
     const sock = socketRef.current
     const calleeExt = String(callee || '').trim()
     const callerExt = String(caller || extensionRef.current || 'Unknown').trim()
-    if (!sock || !calleeExt) return
+    if (!sock || !calleeExt || socketAlertSentRef.current) return
+    socketAlertSentRef.current = true
     const payload = { id, caller: callerExt, callee: calleeExt }
     sock.emit('call_ringing', payload)
-    sock.emit('call_start', {
-      ...payload,
-      direction: 'outbound',
-      status: 'ringing',
-    })
-    console.info(`[SIP] call_ringing sent — ${callerExt} → ext ${calleeExt}`)
+    console.info(`[SIP] call_ringing sent — ${callerExt} → ext ${calleeExt} (Asterisk ringing)`)
   }, [])
 
   const emitCallStart = useCallback((session, { caller, callee, direction, status }) => {
@@ -246,6 +244,7 @@ export const SIPProvider = ({ children }) => {
       const targetExt = String(callee || '')
       if (!caller || !targetExt || targetExt !== myExt) return
       if (incomingCallRef.current) return
+      if (pendingCallerRef.current === caller) return
 
       const ua = uaRef.current
       const sipLive = Boolean(ua?.isConnected?.() && ua?.isRegistered?.())
@@ -255,6 +254,7 @@ export const SIPProvider = ({ children }) => {
       }
 
       setRegistrationError(null)
+      pendingCallerRef.current = caller
       setPendingCaller(caller)
       setSipInvitePending(true)
       startIncomingRing()
@@ -264,6 +264,7 @@ export const SIPProvider = ({ children }) => {
     }
 
     const onCallEnded = () => {
+      pendingCallerRef.current = null
       setPendingCaller(null)
       setSipInvitePending(false)
       stopAllCallAlerts()
@@ -272,6 +273,7 @@ export const SIPProvider = ({ children }) => {
     const onSipOwnerLost = ({ extension: lostExt }) => {
       if (String(lostExt || '') !== String(extensionRef.current || '')) return
       isSipOwnerRef.current = false
+      pendingCallerRef.current = null
       setPendingCaller(null)
       setSipInvitePending(false)
       stopAllCallAlerts()
@@ -380,6 +382,8 @@ export const SIPProvider = ({ children }) => {
     setPendingCaller(null)
     setSipInvitePending(false)
     incomingCallRef.current = null
+    pendingCallerRef.current = null
+    socketAlertSentRef.current = false
     stopCallTimer()
     stopStatsPolling()
     setPeerConnection(null)
@@ -396,6 +400,7 @@ export const SIPProvider = ({ children }) => {
     setIncomingFrom(null)
     setPendingCaller(null)
     incomingCallRef.current = null
+    pendingCallerRef.current = null
     emitCallEstablish(session)
 
     const pc = session.connection
@@ -547,6 +552,7 @@ export const SIPProvider = ({ children }) => {
         setIncomingCall(session)
         setSipSessionReady(true)    // FIX: set synchronously — enables Answer button immediately
         setIncomingFrom(caller)
+        pendingCallerRef.current = null
         setPendingCaller(null)
         setSipInvitePending(false)
         setRegistrationError(null)
@@ -563,6 +569,7 @@ export const SIPProvider = ({ children }) => {
         })
       },
       onOutgoingCall: (session, callee) => {
+        socketAlertSentRef.current = false
         setCurrentCall(session)
         setCallStatus('calling')
         const caller = extensionRef.current || 'Unknown'
@@ -572,9 +579,8 @@ export const SIPProvider = ({ children }) => {
           direction: 'outbound',
           status: 'calling',
         })
-        notifyCalleeViaSocket(caller, callee, getSessionCallId(session))
       },
-      onProgress: (session) => {
+      onProgress: (session, code) => {
         setCallStatus((prev) => (prev === 'incoming' ? prev : 'ringing'))
         const sock = socketRef.current
         if (!sock || !session) return
@@ -582,13 +588,17 @@ export const SIPProvider = ({ children }) => {
         if (!id) return
         const remote = session.remote_identity?.uri?.user || 'Unknown'
         const local = extensionRef.current || 'Unknown'
+        const isRinging = code === 180 || code === 183
         sock.emit('call_start', {
           id,
           caller: session.direction === 'incoming' ? remote : local,
           callee: session.direction === 'incoming' ? local : remote,
           direction: session.direction === 'incoming' ? 'inbound' : 'outbound',
-          status: 'ringing',
+          status: isRinging ? 'ringing' : 'calling',
         })
+        if (session.direction === 'outgoing' && isRinging) {
+          notifyCalleeViaSocket(local, remote, id)
+        }
       },
       onAccepted: (session) => markCallConnected(session),
       onConfirmed: (session) => markCallConnected(session),
@@ -685,6 +695,7 @@ export const SIPProvider = ({ children }) => {
       terminateSession(session)
       return
     }
+    pendingCallerRef.current = null
     setPendingCaller(null)
     setSipInvitePending(false)
   }, [incomingCall])

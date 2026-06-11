@@ -5,7 +5,7 @@
  */
 
 import JsSIP from 'jssip'
-import { env, parseSipUri, trimEnv, hostFromUrl } from '../config/env'
+import { env, parseSipUri, trimEnv, hostFromUrl, portFromUrl } from '../config/env'
 
 JsSIP.debug.enable(
   import.meta.env.DEV || import.meta.env.VITE_SIP_DEBUG === 'true' ? 'JsSIP:*' : 'JsSIP:Error'
@@ -187,10 +187,17 @@ export function createUA(callbacks, overrides = {}) {
   // AoR URI (From/To) includes the extension — Asterisk matches AOR from the To header user.
   // JsSIP derives registrar/realm from uri; do not override registrar_server or realm.
   const normalizedUri = `sip:${authorizationUser}@${effectiveDomain}`
+  const wsPort = portFromUrl(websocketUrl) || '8089'
+  // Explicit Contact host:port so Asterisk routes INVITE back over WebSocket (not .invalid UDP).
+  const contactHost = wsPort === '80' || wsPort === '443'
+    ? effectiveDomain
+    : `${effectiveDomain}:${wsPort}`
+  const contactUri = `sip:${authorizationUser}@${contactHost}`
 
   const configuration = {
     sockets:            [socket],
     uri:                normalizedUri,
+    contact_uri:        contactUri,
     display_name:       authorizationUser,
     authorization_user: authorizationUser,
     password,
@@ -210,6 +217,7 @@ export function createUA(callbacks, overrides = {}) {
   const extension = authorizationUser
   const ua = new JsSIP.UA(configuration)
   let registerTimeoutId = null
+  let hadDisconnected = false
 
   const clearRegisterTimeout = () => {
     if (registerTimeoutId) {
@@ -237,11 +245,17 @@ export function createUA(callbacks, overrides = {}) {
     console.info(`[SIP] WebSocket connected — ${uri} (sending REGISTER…)`)
     startRegisterTimeout()
     callbacks.onConnected?.()
-    // register:true already sends REGISTER — do not call ua.register() again (breaks JsSIP state).
+    // On reconnect, refresh REGISTER so Asterisk WebSocket line= maps to this session.
+    if (hadDisconnected) {
+      console.info('[SIP] WebSocket reconnected — refreshing REGISTER contact')
+      ua.register({ expires: configuration.register_expires })
+    }
+    hadDisconnected = false
   })
 
   ua.on('disconnected', (e) => {
     clearRegisterTimeout()
+    hadDisconnected = true
     const cause = e?.cause ?? e?.error?.cause ?? e?.error ?? 'unknown'
     console.warn(`[SIP] WebSocket disconnected — ${uri}`, cause)
     callbacks.onDisconnected?.(cause)
@@ -283,6 +297,9 @@ export function createUA(callbacks, overrides = {}) {
 
     console.info(`[SIP] New session — originator: ${originator}`)
 
+    // Attach before callbacks so INVITE/progress events are not missed.
+    attachSessionHandlers(session, callbacks)
+
     if (originator === 'remote') {
       const caller = session.remote_identity?.uri?.user || 'Unknown'
       console.info(`[SIP] Incoming call from ${caller}`)
@@ -292,9 +309,6 @@ export function createUA(callbacks, overrides = {}) {
       console.info(`[SIP] Outgoing call to ${callee}`)
       callbacks.onOutgoingCall?.(session, callee)
     }
-
-    // After UI sets initial state — attach handlers (may upgrade calling → ringing → connected).
-    attachSessionHandlers(session, callbacks)
   })
 
   return ua
