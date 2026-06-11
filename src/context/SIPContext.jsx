@@ -120,6 +120,7 @@ export const SIPProvider = ({ children }) => {
   const isSipOwnerRef = useRef(false)
   const inviteWaitTimerRef = useRef(null)
   const outgoingWatchdogRef = useRef(null)
+  const inviteSentRef = useRef(false)
 
   useEffect(() => {
     extensionRef.current = extension
@@ -371,6 +372,7 @@ export const SIPProvider = ({ children }) => {
     incomingCallRef.current = null
     pendingCallerRef.current = null
     socketAlertSentRef.current = false
+    inviteSentRef.current = false
     clearTimeout(outgoingWatchdogRef.current)
     outgoingWatchdogRef.current = null
     stopCallTimer()
@@ -564,6 +566,7 @@ export const SIPProvider = ({ children }) => {
       },
       onOutgoingCall: (session, callee) => {
         socketAlertSentRef.current = false
+        inviteSentRef.current = false
         setCurrentCall(session)
         setCallStatus('calling')
         const caller = extensionRef.current || 'Unknown'
@@ -576,14 +579,17 @@ export const SIPProvider = ({ children }) => {
         clearTimeout(outgoingWatchdogRef.current)
         outgoingWatchdogRef.current = setTimeout(() => {
           if (connectedSessionRef.current || !currentCallRef.current) return
-          console.error('[SIP] Call timeout — no SIP progress from Asterisk within 25s')
-          setRegistrationError(
-            'Call timed out — INVITE may not have reached Asterisk. ' +
-            'Unregister → Register both extensions, confirm pjsip show contacts, then retry.'
-          )
+          const msg = inviteSentRef.current
+            ? 'Call timed out — INVITE was sent but Asterisk did not respond. ' +
+              'On EC2 during the call run: docker logs voxera-asterisk --tail 30'
+            : 'Call timed out — INVITE never left the browser (mic/ICE). ' +
+              'Check console for [SIP] Microphone granted and [SIP] INVITE sent.'
+          console.error('[SIP] Call timeout —', msg)
+          setRegistrationError(msg)
         }, 25_000)
       },
       onProgress: (session, code) => {
+        if (code === 100) inviteSentRef.current = true
         clearTimeout(outgoingWatchdogRef.current)
         setCallStatus((prev) => (prev === 'incoming' ? prev : 'ringing'))
         const sock = socketRef.current
@@ -613,6 +619,10 @@ export const SIPProvider = ({ children }) => {
         resetCallState()
       },
       onFailed: (session, cause) => {
+        clearTimeout(outgoingWatchdogRef.current)
+        if (cause === 'getUserMediaFailed' || cause === 'User Denied Media Access') {
+          setRegistrationError('Microphone access failed — allow mic permission and try again')
+        }
         emitCallEnd(session || currentCallRef.current, cause === 'Rejected' ? 'missed' : 'failed')
         resetCallState()
       },
@@ -658,7 +668,7 @@ export const SIPProvider = ({ children }) => {
     setUaLive(false)
   }, [resetCallState])
 
-  const makeCall = useCallback((target) => {
+  const makeCall = useCallback(async (target) => {
     const ua = uaRef.current
     if (!ua || !isRegistered) return
     if (!ua.isConnected?.() || !ua.isRegistered?.()) {
@@ -672,22 +682,26 @@ export const SIPProvider = ({ children }) => {
       return
     }
     try {
+      setRegistrationError(null)
       const domain = getUaSipDomain(ua)
-      // Socket alert is sent from onOutgoingCall once JsSIP has created the SIP session.
-      sipMakeCall(ua, normalizedTarget, domain)
-      // callStatus set in onOutgoingCall / onProgress / markCallConnected
+      await sipMakeCall(ua, normalizedTarget, domain)
     } catch (e) {
       console.error('[SIP] makeCall error:', e)
+      setRegistrationError(e?.message || 'Call failed — see browser console')
     }
-  }, [isRegistered, callStatus, notifyCalleeViaSocket])
+  }, [isRegistered, callStatus])
 
-  const answerCall = useCallback(() => {
+  const answerCall = useCallback(async () => {
     const session = incomingCallRef.current || incomingCall
     if (!session) return
     stopAllCallAlerts()
-    sipAnswerCall(session)
-    setCurrentCall(session)
-    // connected state set by onAccepted / onConfirmed / onMediaConnected
+    try {
+      await sipAnswerCall(session)
+      setCurrentCall(session)
+    } catch (e) {
+      console.error('[SIP] answerCall error:', e)
+      setRegistrationError(e?.message || 'Answer failed — allow microphone access')
+    }
   }, [incomingCall])
 
   const rejectCall = useCallback(() => {
