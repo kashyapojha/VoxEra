@@ -207,8 +207,44 @@ EOF
   mv /tmp/extensions.conf "${PJSIP_DIR}/extensions.conf"
 }
 
+generate_tls_certs() {
+  TLS_DIR="/etc/asterisk/keys"
+  mkdir -p "$TLS_DIR"
+  if [ ! -f "$TLS_DIR/asterisk.crt" ]; then
+    if command -v openssl >/dev/null 2>&1; then
+      openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+        -keyout "$TLS_DIR/asterisk.key" \
+        -out "$TLS_DIR/asterisk.crt" \
+        -subj "/CN=${ASTERISK_EXTERNAL_IP}"
+      chmod 640 "$TLS_DIR/asterisk.key" "$TLS_DIR/asterisk.crt" 2>/dev/null || true
+      chown asterisk:asterisk "$TLS_DIR" "$TLS_DIR"/* 2>/dev/null || true
+      echo "[asterisk] TLS cert generated for WSS (CN=${ASTERISK_EXTERNAL_IP})"
+    else
+      echo "[asterisk] WARN: openssl missing — WSS disabled, use ws:// only"
+    fi
+  fi
+}
+
 generate_http_conf() {
-  cat > "$HTTP_OUTPUT" <<EOF
+  TLS_DIR="/etc/asterisk/keys"
+  if [ -f "$TLS_DIR/asterisk.crt" ] && [ -f "$TLS_DIR/asterisk.key" ]; then
+    cat > "$HTTP_OUTPUT" <<EOF
+[general]
+servername=Asterisk
+enabled=yes
+bindaddr=0.0.0.0
+bindport=${ASTERISK_WS_PORT}
+tlsenable=yes
+tlscertfile=${TLS_DIR}/asterisk.crt
+tlsprivatekey=${TLS_DIR}/asterisk.key
+enable_status=yes
+
+[websocket]
+enabled=yes
+EOF
+    echo "[asterisk] HTTP/WebSocket TLS enabled on port ${ASTERISK_WS_PORT} (wss://)"
+  else
+    cat > "$HTTP_OUTPUT" <<EOF
 [general]
 servername=Asterisk
 enabled=yes
@@ -220,6 +256,8 @@ enable_status=yes
 [websocket]
 enabled=yes
 EOF
+    echo "[asterisk] HTTP/WebSocket plain ws:// on port ${ASTERISK_WS_PORT}"
+  fi
   strip_crlf < "$HTTP_OUTPUT" > /tmp/http.conf
   mv /tmp/http.conf "$HTTP_OUTPUT"
 }
@@ -328,6 +366,7 @@ verify_pjsip_runtime() {
 generate_sorcery_conf
 generate_pjsip_configs
 generate_extensions_conf
+generate_tls_certs
 generate_http_conf
 validate_config_files
 

@@ -32,7 +32,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-}
-        VITE_SIP_WS_URL: ${VITE_SIP_WS_URL:-ws://${ASTERISK_EXTERNAL_IP:-${PUBLIC_HOST}}:${ASTERISK_WSS_PORT:-8089}/ws}
+        VITE_SIP_WS_URL: ${VITE_SIP_WS_URL:-wss://${ASTERISK_EXTERNAL_IP:-${PUBLIC_HOST}}:${ASTERISK_WSS_PORT:-8089}/ws}
         VITE_SIP_URI: ${VITE_SIP_URI:-sip:1001@${ASTERISK_EXTERNAL_IP:-${PUBLIC_HOST}}}
         VITE_SIP_PASSWORD: ${VITE_SIP_PASSWORD:-1001}
         VITE_SIP_DEBUG: ${VITE_SIP_DEBUG:-true}
@@ -41,6 +41,7 @@ services:
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-80}:80"
+      - "${FRONTEND_HTTPS_PORT:-443}:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:

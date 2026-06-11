@@ -26,7 +26,7 @@ set -a && . "$ENV_FILE" && set +a
 
 IP="${ASTERISK_EXTERNAL_IP:-${PUBLIC_HOST:-127.0.0.1}}"
 export VITE_API_URL="${VITE_API_URL:-}"
-export VITE_SIP_WS_URL="${VITE_SIP_WS_URL:-ws://${IP}:8089/ws}"
+export VITE_SIP_WS_URL="${VITE_SIP_WS_URL:-wss://${IP}:8089/ws}"
 export VITE_SIP_URI="${VITE_SIP_URI:-sip:1001@${IP}}"
 export VITE_SIP_PASSWORD="${VITE_SIP_PASSWORD:-1001}"
 export VITE_SIP_DEBUG="${VITE_SIP_DEBUG:-true}"
@@ -41,7 +41,7 @@ echo "=== Recreating voxera-frontend ==="
 "${COMPOSE[@]}" --env-file "$ENV_FILE" -f docker-compose.prod.yml up -d --force-recreate frontend
 
 echo ""
-echo "OK: Frontend rebuilt. Hard-refresh browsers (Ctrl+Shift+R)."
+echo "OK: Frontend rebuilt. Open https://${IP}/ (accept cert warning), hard-refresh (Ctrl+Shift+R)."
 echo "Verify in browser console: [SIP] VoxEra sipService"
 echo "Then: bash scripts/rebuild-asterisk-ec2.sh  (if dialplan check fails)"
 echo "Then: bash scripts/debug-sip-call.sh"

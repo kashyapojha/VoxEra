@@ -11,6 +11,8 @@ import {
   answerCall as sipAnswerCall,
   terminateSession,
   destroyUA,
+  primeMicrophone,
+  getMediaAccessError,
   SIP_DOMAIN,
 } from '../services/sipService'
 import { env, parseSipUri, trimEnv, hostFromUrl, resolveSipPassword } from '../config/env'
@@ -499,6 +501,12 @@ export const SIPProvider = ({ children }) => {
         localStorage.setItem('sip_ext', registeredExt)
         localStorage.setItem('sip_registered', 'true')
         primeCallNotifications()
+        const mediaBlock = getMediaAccessError()
+        if (mediaBlock) {
+          setRegistrationError(mediaBlock)
+        } else {
+          primeMicrophone()
+        }
         console.info(`[SIP] Extension ${registeredExt} ready to receive calls on this browser`)
         console.info(
           `[SIP] Server check — while this tab stays open, run on EC2: ` +
@@ -578,8 +586,8 @@ export const SIPProvider = ({ children }) => {
           if (connectedSessionRef.current || !currentCallRef.current) return
           console.error('[SIP] Call timeout — no SIP progress from Asterisk within 25s')
           setRegistrationError(
-            'Call timed out — INVITE may not have reached Asterisk. ' +
-            'Unregister → Register both extensions, confirm pjsip show contacts, then retry.'
+            'Call timed out — INVITE never left the browser. ' +
+            'Use https:// (not http://), allow microphone, Unregister → Register, then retry.'
           )
         }, 25_000)
       },
@@ -613,6 +621,13 @@ export const SIPProvider = ({ children }) => {
         resetCallState()
       },
       onFailed: (session, cause) => {
+        clearTimeout(outgoingWatchdogRef.current)
+        if (cause === 'getUserMediaFailed' || cause === 'User Denied Media Access') {
+          setRegistrationError(
+            getMediaAccessError() ||
+            'Microphone access failed — allow the mic in the browser, then try again'
+          )
+        }
         emitCallEnd(session || currentCallRef.current, cause === 'Rejected' ? 'missed' : 'failed')
         resetCallState()
       },
@@ -658,7 +673,7 @@ export const SIPProvider = ({ children }) => {
     setUaLive(false)
   }, [resetCallState])
 
-  const makeCall = useCallback((target) => {
+  const makeCall = useCallback(async (target) => {
     const ua = uaRef.current
     if (!ua || !isRegistered) return
     if (!ua.isConnected?.() || !ua.isRegistered?.()) {
@@ -671,23 +686,37 @@ export const SIPProvider = ({ children }) => {
       setRegistrationError(`Cannot call your own extension (${normalizedTarget})`)
       return
     }
+    const mediaBlock = getMediaAccessError()
+    if (mediaBlock) {
+      setRegistrationError(mediaBlock)
+      return
+    }
     try {
       const domain = getUaSipDomain(ua)
-      // Socket alert is sent from onOutgoingCall once JsSIP has created the SIP session.
-      sipMakeCall(ua, normalizedTarget, domain)
-      // callStatus set in onOutgoingCall / onProgress / markCallConnected
+      setRegistrationError(null)
+      await sipMakeCall(ua, normalizedTarget, domain)
     } catch (e) {
       console.error('[SIP] makeCall error:', e)
+      setRegistrationError(e?.message || 'Call failed — check microphone and HTTPS')
     }
-  }, [isRegistered, callStatus, notifyCalleeViaSocket])
+  }, [isRegistered, callStatus])
 
-  const answerCall = useCallback(() => {
+  const answerCall = useCallback(async () => {
     const session = incomingCallRef.current || incomingCall
     if (!session) return
+    const mediaBlock = getMediaAccessError()
+    if (mediaBlock) {
+      setRegistrationError(mediaBlock)
+      return
+    }
     stopAllCallAlerts()
-    sipAnswerCall(session)
-    setCurrentCall(session)
-    // connected state set by onAccepted / onConfirmed / onMediaConnected
+    try {
+      await sipAnswerCall(session)
+      setCurrentCall(session)
+    } catch (e) {
+      console.error('[SIP] answerCall error:', e)
+      setRegistrationError(e?.message || 'Answer failed — allow microphone access')
+    }
   }, [incomingCall])
 
   const rejectCall = useCallback(() => {

@@ -61,7 +61,7 @@ env = {
     "DOCKER_BACKEND_REPO": os.environ["DOCKER_BACKEND_REPO"],
     "IMAGE_TAG": os.environ["IMAGE_TAG"],
     "VITE_API_URL": "",
-    "VITE_SIP_WS_URL": f"ws://{os.environ['ASTERISK_EXTERNAL_IP']}:8089/ws",
+    "VITE_SIP_WS_URL": f"wss://{os.environ['ASTERISK_EXTERNAL_IP']}:8089/ws",
     "VITE_SIP_URI": f"sip:1001@{os.environ['ASTERISK_EXTERNAL_IP']}",
     "VITE_SIP_PASSWORD": "1001",
     "VITE_SIP_DEBUG": "true",
