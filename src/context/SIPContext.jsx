@@ -119,6 +119,7 @@ export const SIPProvider = ({ children }) => {
   const sipTabIdRef = useRef(getSipTabId())
   const isSipOwnerRef = useRef(false)
   const inviteWaitTimerRef = useRef(null)
+  const outgoingWatchdogRef = useRef(null)
 
   useEffect(() => {
     extensionRef.current = extension
@@ -370,6 +371,8 @@ export const SIPProvider = ({ children }) => {
     incomingCallRef.current = null
     pendingCallerRef.current = null
     socketAlertSentRef.current = false
+    clearTimeout(outgoingWatchdogRef.current)
+    outgoingWatchdogRef.current = null
     stopCallTimer()
     stopStatsPolling()
     setPeerConnection(null)
@@ -570,8 +573,18 @@ export const SIPProvider = ({ children }) => {
           direction: 'outbound',
           status: 'calling',
         })
+        clearTimeout(outgoingWatchdogRef.current)
+        outgoingWatchdogRef.current = setTimeout(() => {
+          if (connectedSessionRef.current || !currentCallRef.current) return
+          console.error('[SIP] Call timeout — no SIP progress from Asterisk within 25s')
+          setRegistrationError(
+            'Call timed out — INVITE may not have reached Asterisk. ' +
+            'Unregister → Register both extensions, confirm pjsip show contacts, then retry.'
+          )
+        }, 25_000)
       },
       onProgress: (session, code) => {
+        clearTimeout(outgoingWatchdogRef.current)
         setCallStatus((prev) => (prev === 'incoming' ? prev : 'ringing'))
         const sock = socketRef.current
         if (!sock || !session) return
@@ -587,8 +600,8 @@ export const SIPProvider = ({ children }) => {
           direction: session.direction === 'incoming' ? 'inbound' : 'outbound',
           status: isRinging ? 'ringing' : 'calling',
         })
-        // Only notify callee after Asterisk confirms ringing (180), not on local WebRTC 183.
-        if (session.direction === 'outgoing' && code === 180) {
+        // Notify callee only on real SIP ringing responses from Asterisk (not local WebRTC events).
+        if (session.direction === 'outgoing' && (code === 180 || code === 183)) {
           notifyCalleeViaSocket(local, remote, id)
         }
       },

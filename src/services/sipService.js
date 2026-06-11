@@ -30,11 +30,18 @@ console.info('[SIP] VoxEra sipService loaded', {
 const wiredSessions = new WeakSet()
 const wiredPeerConnections = new WeakSet()
 
+const ICE_GATHER_TIMEOUT_MS = 2500
+
 const defaultCallOptions = {
   mediaConstraints: { audio: true, video: false },
   pcConfig: {
-    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+    ],
+    iceCandidatePoolSize: 0,
   },
+  rtcOfferConstraints: { offerToReceiveAudio: true, offerToReceiveVideo: false },
   sessionTimersExpires: 0,
 }
 
@@ -125,6 +132,29 @@ function attachSessionHandlers(session, callbacks) {
     callbacks.onFailed?.(session, 'getUserMediaFailed')
   })
 
+  // JsSIP waits for ICE gathering before sending INVITE — timeout so calls don't hang forever.
+  let iceGatherTimeoutId = null
+  let iceReadyFn = null
+  session.on('icecandidate', (data) => {
+    if (data?.ready) iceReadyFn = data.ready
+    if (!iceGatherTimeoutId) {
+      iceGatherTimeoutId = setTimeout(() => {
+        console.info(`[SIP] ICE gathering timeout (${ICE_GATHER_TIMEOUT_MS}ms) — sending INVITE`)
+        iceReadyFn?.()
+      }, ICE_GATHER_TIMEOUT_MS)
+    }
+    if (!data?.candidate) {
+      clearTimeout(iceGatherTimeoutId)
+      iceGatherTimeoutId = null
+      data?.ready?.()
+    }
+  })
+
+  session.on('peerconnection:createofferfailed', (e) => {
+    console.error('[SIP] createOffer failed', e)
+    callbacks.onFailed?.(session, 'WebRTC Error')
+  })
+
   session.on('sending', (e) => {
     if (e.request?.method === 'INVITE') {
       console.info('[SIP] INVITE sent')
@@ -181,9 +211,8 @@ export function createUA(callbacks, overrides = {}) {
   // AoR URI (From/To) includes the extension — Asterisk matches AOR from the To header user.
   // JsSIP derives registrar/realm from uri; do not override registrar_server or realm.
   const normalizedUri = `sip:${authorizationUser}@${effectiveDomain}`
-  // REGISTER Contact: public SIP domain + ws transport — not Asterisk's :8089 listen port (that is
-  // the server, not the browser). rewrite_contact on the endpoint maps this to the live WebSocket.
-  const contactUri = `sip:${authorizationUser}@${effectiveDomain};transport=ws`
+  // REGISTER Contact: real SIP domain (not .invalid). Asterisk rewrite_contact binds the live WebSocket.
+  const contactUri = `sip:${authorizationUser}@${effectiveDomain}`
 
   const configuration = {
     sockets:            [socket],

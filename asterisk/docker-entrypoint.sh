@@ -108,14 +108,14 @@ type=aor
 max_contacts=1
 remove_existing=yes
 qualify_frequency=0
-support_path=yes
+support_path=no
 
 [1002]
 type=aor
 max_contacts=1
 remove_existing=yes
 qualify_frequency=0
-support_path=yes
+support_path=no
 EOF
 
   cat > "${PJSIP_DIR}/pjsip.endpoint.conf" <<EOF
