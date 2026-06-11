@@ -90,7 +90,7 @@ services:
       retries: 12
       start_period: 180s
     ports:
-      - "${ASTERISK_WSS_PORT:-8089}:${ASTERISK_WSS_PORT:-8089}"
+      - "${ASTERISK_WSS_PORT:-8089}:${ASTERISK_WSS_PORT:-8089}/tcp"
       - "${ASTERISK_SIP_PORT:-5060}:5060/udp"
       - "${ASTERISK_RTP_START:-10000}-${ASTERISK_RTP_END:-10099}:${ASTERISK_RTP_START:-10000}-${ASTERISK_RTP_END:-10099}/udp"
     volumes:
