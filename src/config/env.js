@@ -53,18 +53,30 @@ const { extension: sipExtension, domain: sipDomain } = parseSipUri(sipUri)
  * When the URI extension differs from the baked .env default, do not keep using VITE_SIP_PASSWORD.
  */
 /**
- * HTTPS pages cannot open ws:// (mixed content). Upgrade ws→wss on same host/path when page is secure.
- * .env can stay ws:// — this picks wss:// automatically after you open https://your-host/.
+ * HTTPS pages cannot use ws:// (mixed content). Direct wss://host:8089 often fails (separate TLS cert).
+ * Route SIP through nginx on the same host:443 → /sip-ws → Asterisk :8089/ws.
  */
 export function resolveSipWebSocketUrl(url) {
   const trimmed = trimEnv(url)
   if (!trimmed || typeof window === 'undefined') return trimmed
   if (window.location.protocol !== 'https:') return trimmed
-  if (trimmed.startsWith('wss://')) return trimmed
+
+  try {
+    const httpish = trimmed.replace(/^ws:/i, 'http:').replace(/^wss:/i, 'https:')
+    const sip = new URL(httpish)
+    if (sip.hostname === window.location.hostname) {
+      const proxied = `wss://${window.location.host}/sip-ws`
+      if (trimmed !== proxied) {
+        console.info(`[SIP] HTTPS — SIP WebSocket via nginx: ${proxied} (settings: ${trimmed})`)
+      }
+      return proxied
+    }
+  } catch {
+    // fall through
+  }
+
   if (trimmed.startsWith('ws://')) {
-    const upgraded = `wss://${trimmed.slice(5)}`
-    console.info(`[SIP] Page is HTTPS — using ${upgraded} (was ${trimmed})`)
-    return upgraded
+    return `wss://${trimmed.slice(5)}`
   }
   return trimmed
 }

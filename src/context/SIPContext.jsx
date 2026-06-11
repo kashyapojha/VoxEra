@@ -482,10 +482,13 @@ export const SIPProvider = ({ children }) => {
         disconnectTimerRef.current = setTimeout(() => {
           const ua = uaRef.current
           if (ua && !ua.isConnected?.()) {
+            registerInProgressRef.current = false
             setIsRegistered(false)
+            setIsRegistering(false)
             setConnectionStatus('disconnected')
             setRegistrationError(
-              'SIP WebSocket lost — register again on this browser to receive calls'
+              'SIP WebSocket could not connect. On HTTPS use WebSocket URL ws://YOUR_IP:8089/ws ' +
+              '(app routes via wss://YOUR_IP/sip-ws). Rebuild frontend after git pull, then Register again.'
             )
           }
         }, 12000)

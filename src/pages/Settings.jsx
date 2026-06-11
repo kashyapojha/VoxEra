@@ -5,7 +5,7 @@ import { User, Bell, Shield, Phone, Globe, Save, LogOut } from 'lucide-react'
 import GlassCard from '../components/UI/GlassCard'
 import { useSip } from '../context/SIPContext'
 import { useAuth } from '../context/AuthContext'
-import { env, parseSipUri, hostFromUrl, resolveSipPassword } from '../config/env'
+import { env, parseSipUri, hostFromUrl, resolveSipPassword, resolveSipWebSocketUrl } from '../config/env'
 
 const Settings = () => {
   const {
@@ -45,6 +45,9 @@ const Settings = () => {
   }, [setSipConfig])
 
   const parsedSip = parseSipUri(sipConfig.uri || env.sipUri)
+  const configuredWs = sipConfig.websocket || env.sipWsUrl
+  const effectiveWs = resolveSipWebSocketUrl(configuredWs)
+  const wsUpgraded = configuredWs && effectiveWs && configuredWs !== effectiveWs
 
   // Keep password aligned with SIP URI extension (1002 URI must not keep 1001 password).
   useEffect(() => {
@@ -161,8 +164,22 @@ const Settings = () => {
                       type="text"
                       value={sipConfig.websocket}
                       onChange={(e) => setSipConfig({ ...sipConfig, websocket: e.target.value })}
-                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-accent/50 transition-colors"
+                      placeholder="ws://13.62.237.148:8089/ws"
+                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-accent/50 transition-colors font-mono text-sm"
                     />
+                    {typeof window !== 'undefined' && window.location.protocol === 'https:' ? (
+                      <p className="mt-1.5 text-xs text-green-400/90">
+                        HTTPS — JsSIP connects via{' '}
+                        <span className="font-mono">{effectiveWs || 'wss://…/sip-ws'}</span>
+                        {configuredWs && configuredWs !== effectiveWs ? (
+                          <> (not direct <span className="font-mono">{configuredWs}</span>)</>
+                        ) : null}
+                      </p>
+                    ) : (
+                      <p className="mt-1.5 text-xs text-gray-500">
+                        Use <span className="font-mono">https://</span> for calls (microphone requires HTTPS).
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">
