@@ -52,6 +52,23 @@ const { extension: sipExtension, domain: sipDomain } = parseSipUri(sipUri)
  * Asterisk demo PBX uses extension-as-password (1001→1001, 1002→1002).
  * When the URI extension differs from the baked .env default, do not keep using VITE_SIP_PASSWORD.
  */
+/**
+ * HTTPS pages cannot open ws:// (mixed content). Upgrade ws→wss on same host/path when page is secure.
+ * .env can stay ws:// — this picks wss:// automatically after you open https://your-host/.
+ */
+export function resolveSipWebSocketUrl(url) {
+  const trimmed = trimEnv(url)
+  if (!trimmed || typeof window === 'undefined') return trimmed
+  if (window.location.protocol !== 'https:') return trimmed
+  if (trimmed.startsWith('wss://')) return trimmed
+  if (trimmed.startsWith('ws://')) {
+    const upgraded = `wss://${trimmed.slice(5)}`
+    console.info(`[SIP] Page is HTTPS — using ${upgraded} (was ${trimmed})`)
+    return upgraded
+  }
+  return trimmed
+}
+
 export function resolveSipPassword(extension, explicitPassword) {
   const ext = trimEnv(extension)
   const pass = trimEnv(explicitPassword)

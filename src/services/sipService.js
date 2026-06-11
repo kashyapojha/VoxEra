@@ -5,7 +5,7 @@
  */
 
 import JsSIP from 'jssip'
-import { env, parseSipUri, trimEnv, hostFromUrl } from '../config/env'
+import { env, parseSipUri, trimEnv, hostFromUrl, resolveSipWebSocketUrl } from '../config/env'
 
 JsSIP.debug.enable(
   import.meta.env.DEV || import.meta.env.VITE_SIP_DEBUG === 'true' ? 'JsSIP:*' : 'JsSIP:Error'
@@ -56,10 +56,14 @@ export async function acquireCallMedia() {
     throw new Error('WebRTC is not supported in this browser')
   }
   if (!navigator.mediaDevices?.getUserMedia) {
-    const hint = !window.isSecureContext
-      ? ' Page is not a secure context — try https:// or http://localhost.'
-      : ''
-    throw new Error(`Microphone API unavailable.${hint}`)
+    if (!window.isSecureContext) {
+      const host = window.location.host
+      throw new Error(
+        `Microphone blocked on http://${host}. Open https://${host}/ instead ` +
+        '(accept certificate warning). SIP ws:// in settings will auto-upgrade to wss://.'
+      )
+    }
+    throw new Error('Microphone API unavailable in this browser')
   }
   if (cachedLocalAudioStream?.active) {
     return cachedLocalAudioStream
@@ -249,7 +253,7 @@ function attachSessionHandlers(session, callbacks) {
  * @param {string} [overrides.password]
  */
 export function createUA(callbacks, overrides = {}) {
-  const websocketUrl = trimEnv(overrides.websocketUrl || SIP_WS)
+  const websocketUrl = resolveSipWebSocketUrl(trimEnv(overrides.websocketUrl || SIP_WS))
   const uri = trimEnv(overrides.uri || SIP_URI)
   const password = trimEnv(overrides.password || SIP_PASSWORD)
 

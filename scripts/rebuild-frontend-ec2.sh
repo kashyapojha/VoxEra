@@ -41,7 +41,8 @@ echo "=== Recreating voxera-frontend ==="
 "${COMPOSE[@]}" --env-file "$ENV_FILE" -f docker-compose.prod.yml up -d --force-recreate frontend
 
 echo ""
-echo "OK: Frontend rebuilt. Hard-refresh browsers (Ctrl+Shift+R)."
+echo "OK: Frontend rebuilt. Open https://${IP}/ (accept cert warning), hard-refresh (Ctrl+Shift+R)."
+echo "     SIP ws:// in .env auto-upgrades to wss:// on HTTPS pages."
 echo "Verify in browser console: [SIP] VoxEra sipService"
 echo "Then: bash scripts/rebuild-asterisk-ec2.sh  (if dialplan check fails)"
 echo "Then: bash scripts/debug-sip-call.sh"

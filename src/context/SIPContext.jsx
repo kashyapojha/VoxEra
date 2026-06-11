@@ -13,7 +13,7 @@ import {
   destroyUA,
   SIP_DOMAIN,
 } from '../services/sipService'
-import { env, parseSipUri, trimEnv, hostFromUrl, resolveSipPassword } from '../config/env'
+import { env, parseSipUri, trimEnv, hostFromUrl, resolveSipPassword, resolveSipWebSocketUrl } from '../config/env'
 import { useSocket } from './SocketContext'
 import {
   primeCallNotifications,
@@ -407,7 +407,7 @@ export const SIPProvider = ({ children }) => {
   }, [emitCallEstablish, startStatsPolling, startCallTimer])
 
   const register = useCallback((ext, password, domainOverride) => {
-    const websocketUrl = trimEnv(sipConfig.websocket) || env.sipWsUrl
+    const websocketUrl = resolveSipWebSocketUrl(trimEnv(sipConfig.websocket) || env.sipWsUrl)
     let uri = trimEnv(sipConfig.uri) || env.sipUri
     const trimmedExt = ext ? trimEnv(ext) : parseSipUri(uri).extension
     const explicitPass =
