@@ -48,6 +48,36 @@ const ASTERISK_PORT = process.env.ASTERISK_PORT || '8089'
 // ── In-memory stores (calls — users & feedback persisted in PostgreSQL) ──
 const calls        = []
 const activeCalls  = new Map() // callId → call details
+/** One browser tab per extension — matches Asterisk max_contacts=1 (last sip_online wins). */
+const sipOwnerByExt = new Map() // extension → { socketId, tabId, updatedAt }
+
+function setSipOwner(extension, socket, tabId) {
+  const prev = sipOwnerByExt.get(extension)
+  if (prev && prev.socketId !== socket.id) {
+    io.to(prev.socketId).emit('sip_owner_lost', { extension, tabId: prev.tabId })
+  }
+  sipOwnerByExt.set(extension, {
+    socketId: socket.id,
+    tabId: tabId || '',
+    updatedAt: Date.now(),
+  })
+}
+
+function clearSipOwner(extension, socketId) {
+  const owner = sipOwnerByExt.get(extension)
+  if (owner && owner.socketId === socketId) {
+    sipOwnerByExt.delete(extension)
+  }
+}
+
+function emitIncomingAlert(callee, payload) {
+  const owner = sipOwnerByExt.get(callee)
+  if (owner?.socketId) {
+    io.to(owner.socketId).emit('sip_incoming_alert', payload)
+    return 1
+  }
+  return 0
+}
 
 function enrichActiveCall(callObj) {
   const duration = callObj.connectedAt
@@ -326,33 +356,39 @@ io.on('connection', async (socket) => {
 
   socket.on('sip_online', (payload) => {
     const extension = String(payload?.extension || '').trim()
+    const tabId = String(payload?.tabId || '').trim()
     if (!extension) return
     socket.join(`ext:${extension}`)
     socket.data.sipExtension = extension
-    console.info(`[SOCKET] SIP online: ext ${extension} (${socket.id})`)
+    socket.data.sipTabId = tabId
+    setSipOwner(extension, socket, tabId)
+    console.info(`[SOCKET] SIP online: ext ${extension} (${socket.id}, tab ${tabId || 'n/a'})`)
   })
 
   socket.on('sip_offline', () => {
     const extension = socket.data?.sipExtension
     if (extension) {
+      clearSipOwner(extension, socket.id)
       socket.leave(`ext:${extension}`)
       console.info(`[SOCKET] SIP offline: ext ${extension} (${socket.id})`)
     }
     delete socket.data.sipExtension
+    delete socket.data.sipTabId
   })
 
-  socket.on('call_ringing', async (payload) => {
+  socket.on('call_ringing', (payload) => {
     const callee = String(payload?.callee || '').trim()
     const caller = String(payload?.caller || 'Unknown').trim()
     if (!callee) return
-    const room = `ext:${callee}`
-    const sockets = await io.in(room).fetchSockets()
-    io.to(room).emit('sip_incoming_alert', {
+    const delivered = emitIncomingAlert(callee, {
       id: getCallId(payload),
       caller,
       callee,
     })
-    console.info(`[SOCKET] Ring alert: ${caller} -> ext ${callee} (${sockets.length} browser(s) listening)`)
+    const owner = sipOwnerByExt.get(callee)
+    console.info(
+      `[SOCKET] Ring alert: ${caller} -> ext ${callee} (owner socket ${owner?.socketId || 'none'}, delivered=${delivered})`
+    )
   })
 
   socket.on('call_start', (payload) => {
@@ -378,7 +414,7 @@ io.on('connection', async (socket) => {
     }
 
     if (callObj.direction === 'outbound' && callObj.callee && callObj.callee !== 'Unknown') {
-      io.to(`ext:${callObj.callee}`).emit('sip_incoming_alert', {
+      emitIncomingAlert(callObj.callee, {
         id,
         caller: callObj.caller,
         callee: callObj.callee,
@@ -462,6 +498,10 @@ io.on('connection', async (socket) => {
   })
 
   socket.on('disconnect', () => {
+    const extension = socket.data?.sipExtension
+    if (extension) {
+      clearSipOwner(extension, socket.id)
+    }
     console.info(`[SOCKET] Disconnected: ${socket.id}`)
   })
 })

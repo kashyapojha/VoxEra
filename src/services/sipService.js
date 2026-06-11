@@ -339,9 +339,8 @@ export function terminateSession(session) {
 export function destroyUA(ua) {
   if (!ua) return
   try {
-    if (ua.isConnected?.() || ua.isRegistered?.()) {
-      ua.stop()
-    }
+    // Always stop — even if isRegistered() is stale after another tab took the contact.
+    ua.stop()
     console.info('[SIP] UA stopped')
   } catch (e) {
     console.warn('[SIP] UA stop error:', e)

@@ -66,8 +66,8 @@ const IncomingCallModal = () => {
               </p>
               {waitingForSip && sipInvitePending && (
                 <p className="text-xs text-red-300/90 mt-2 max-w-xs mx-auto">
-                  If Answer stays disabled: Softphone → Unregister → Register on{' '}
-                  <span className="font-mono">this tab only</span> (one tab per extension).
+                  Close other browser tabs using this extension, then Unregister → Register on{' '}
+                  <span className="font-mono">this tab only</span>.
                 </p>
               )}
               {registrationError && waitingForSip && (

@@ -26,6 +26,18 @@ import {
 
 const SIPContext = createContext(null)
 
+const SIP_TAB_ID_KEY = 'voxera_sip_tab_id'
+
+function getSipTabId() {
+  if (typeof sessionStorage === 'undefined') return `tab-${Date.now()}`
+  let id = sessionStorage.getItem(SIP_TAB_ID_KEY)
+  if (!id) {
+    id = globalThis.crypto?.randomUUID?.() || `tab-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    sessionStorage.setItem(SIP_TAB_ID_KEY, id)
+  }
+  return id
+}
+
 export const useSip = () => {
   const ctx = useContext(SIPContext)
   if (!ctx) throw new Error('useSip must be used within SIPProvider')
@@ -102,6 +114,8 @@ export const SIPProvider = ({ children }) => {
   const isRegisteredRef = useRef(isRegistered)
   const socketRef = useRef(socket)
   const incomingCallRef = useRef(null)
+  const sipTabIdRef = useRef(getSipTabId())
+  const isSipOwnerRef = useRef(false)
 
   useEffect(() => {
     extensionRef.current = extension
@@ -201,12 +215,14 @@ export const SIPProvider = ({ children }) => {
 
       const live = Boolean(ua?.isConnected?.() && ua?.isRegistered?.())
       if (!live) {
+        isSipOwnerRef.current = false
         sock.emit('sip_offline')
         return
       }
 
-      sock.emit('sip_online', { extension: ext })
-      console.info(`[SIP] sip_online sent — ext ${ext} (live SIP WebSocket)`)
+      isSipOwnerRef.current = true
+      sock.emit('sip_online', { extension: ext, tabId: sipTabIdRef.current })
+      console.info(`[SIP] sip_online sent — ext ${ext} (live SIP WebSocket, tab ${sipTabIdRef.current})`)
     }
 
     announceSipOnline()
@@ -216,6 +232,7 @@ export const SIPProvider = ({ children }) => {
     return () => {
       clearInterval(id)
       socket.off('connect', announceSipOnline)
+      isSipOwnerRef.current = false
       socket.emit('sip_offline')
     }
   }, [socket, isRegistered, extension, uaLive])
@@ -229,6 +246,15 @@ export const SIPProvider = ({ children }) => {
       const targetExt = String(callee || '')
       if (!caller || !targetExt || targetExt !== myExt) return
       if (incomingCallRef.current) return
+
+      const ua = uaRef.current
+      const sipLive = Boolean(ua?.isConnected?.() && ua?.isRegistered?.())
+      if (!sipLive || !isSipOwnerRef.current) {
+        console.warn('[SIP] Ignoring socket alert — this tab is not the live SIP owner for the extension')
+        return
+      }
+
+      setRegistrationError(null)
       setPendingCaller(caller)
       setSipInvitePending(true)
       startIncomingRing()
@@ -239,14 +265,28 @@ export const SIPProvider = ({ children }) => {
 
     const onCallEnded = () => {
       setPendingCaller(null)
+      setSipInvitePending(false)
       stopAllCallAlerts()
+    }
+
+    const onSipOwnerLost = ({ extension: lostExt }) => {
+      if (String(lostExt || '') !== String(extensionRef.current || '')) return
+      isSipOwnerRef.current = false
+      setPendingCaller(null)
+      setSipInvitePending(false)
+      stopAllCallAlerts()
+      setRegistrationError(
+        'Another browser tab took this extension — close other tabs or Unregister there, then Register here'
+      )
     }
 
     socket.on('sip_incoming_alert', onIncomingAlert)
     socket.on('call_end_broadcast', onCallEnded)
+    socket.on('sip_owner_lost', onSipOwnerLost)
     return () => {
       socket.off('sip_incoming_alert', onIncomingAlert)
       socket.off('call_end_broadcast', onCallEnded)
+      socket.off('sip_owner_lost', onSipOwnerLost)
     }
   }, [socket])
 
@@ -254,13 +294,15 @@ export const SIPProvider = ({ children }) => {
   useEffect(() => {
     if (!sipInvitePending || incomingCall) return undefined
     const id = setTimeout(() => {
-      if (!incomingCallRef.current) {
-        console.warn('[SIP] SIP INVITE not received — re-register on this tab (Softphone → Unregister → Register)')
-        setRegistrationError(
-          'Call alert received but SIP session missing — Unregister then Register on this tab to receive calls'
-        )
-      }
-    }, 6000)
+      if (incomingCallRef.current) return
+      const ua = uaRef.current
+      const sipLive = Boolean(ua?.isConnected?.() && ua?.isRegistered?.())
+      if (!sipLive || !isSipOwnerRef.current) return
+      console.warn('[SIP] SIP INVITE not received within 10s on owner tab')
+      setRegistrationError(
+        'SIP INVITE not received on this tab — close every other tab for this extension, then Softphone → Unregister → Register once'
+      )
+    }, 10000)
     return () => clearTimeout(id)
   }, [sipInvitePending, incomingCall])
 
@@ -406,6 +448,12 @@ export const SIPProvider = ({ children }) => {
       return
     }
 
+    const sock = socketRef.current
+    if (sock) {
+      isSipOwnerRef.current = false
+      sock.emit('sip_offline')
+    }
+
     if (existingUa) {
       destroyUA(existingUa)
       uaRef.current = null
@@ -501,6 +549,7 @@ export const SIPProvider = ({ children }) => {
         setIncomingFrom(caller)
         setPendingCaller(null)
         setSipInvitePending(false)
+        setRegistrationError(null)
         setCallStatus('incoming')
         startIncomingRing()
         flashDocumentTitle(`Call from ${caller}`)
@@ -577,6 +626,11 @@ export const SIPProvider = ({ children }) => {
   const unregister = useCallback(() => {
     registerSignatureRef.current = ''
     registerInProgressRef.current = false
+    const sock = socketRef.current
+    if (sock) {
+      isSipOwnerRef.current = false
+      sock.emit('sip_offline')
+    }
     if (uaRef.current) {
       destroyUA(uaRef.current)
       uaRef.current = null
@@ -607,7 +661,7 @@ export const SIPProvider = ({ children }) => {
     }
     try {
       const domain = getUaSipDomain(ua)
-      notifyCalleeViaSocket(extensionRef.current || 'Unknown', normalizedTarget)
+      // Socket alert is sent from onOutgoingCall once JsSIP has created the SIP session.
       sipMakeCall(ua, normalizedTarget, domain)
       // callStatus set in onOutgoingCall / onProgress / markCallConnected
     } catch (e) {
