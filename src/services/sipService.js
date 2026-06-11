@@ -135,18 +135,12 @@ function attachSessionHandlers(session, callbacks) {
   session.on('peerconnection', (e) => {
     console.info('[SIP] PeerConnection created')
     bindPeerConnection(e.peerconnection, session, callbacks)
-    if (session.direction === 'outgoing') {
-      callbacks.onProgress?.(session, 183)
-    }
   })
 
   // JsSIP may create the PC before the peerconnection event — attach immediately.
   if (session.connection) {
     console.info('[SIP] PeerConnection already present on session')
     bindPeerConnection(session.connection, session, callbacks)
-    if (session.direction === 'outgoing') {
-      callbacks.onProgress?.(session, 183)
-    }
   }
 }
 

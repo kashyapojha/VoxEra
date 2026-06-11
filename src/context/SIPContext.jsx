@@ -118,6 +118,7 @@ export const SIPProvider = ({ children }) => {
   const socketAlertSentRef = useRef(false)
   const sipTabIdRef = useRef(getSipTabId())
   const isSipOwnerRef = useRef(false)
+  const inviteWaitTimerRef = useRef(null)
 
   useEffect(() => {
     extensionRef.current = extension
@@ -253,8 +254,15 @@ export const SIPProvider = ({ children }) => {
       }
 
       // Heads-up only — Answer UI opens when JsSIP delivers the real INVITE (onIncomingCall).
-      notifyIncomingCall(caller)
       console.info(`[SIP] Socket heads-up — ${caller} → ext ${callee} (SIP INVITE should follow)`)
+      clearTimeout(inviteWaitTimerRef.current)
+      inviteWaitTimerRef.current = setTimeout(() => {
+        if (incomingCallRef.current) return
+        console.warn(
+          `[SIP] No SIP INVITE received within 10s after heads-up — ${caller} → ext ${callee}. ` +
+          'On EC2 run: docker exec voxera-asterisk asterisk -rx "pjsip show contacts" (both 1001 and 1002 must show WSS contacts).'
+        )
+      }, 10_000)
     }
 
     const onCallEnded = () => {
@@ -526,6 +534,7 @@ export const SIPProvider = ({ children }) => {
         setRegistrationError(msg)
       },
       onIncomingCall: (session, caller) => {
+        clearTimeout(inviteWaitTimerRef.current)
         incomingCallRef.current = session
         setIncomingCall(session)
         setSipSessionReady(true)    // FIX: set synchronously — enables Answer button immediately
@@ -574,7 +583,8 @@ export const SIPProvider = ({ children }) => {
           direction: session.direction === 'incoming' ? 'inbound' : 'outbound',
           status: isRinging ? 'ringing' : 'calling',
         })
-        if (session.direction === 'outgoing' && isRinging) {
+        // Only notify callee after Asterisk confirms ringing (180), not on local WebRTC 183.
+        if (session.direction === 'outgoing' && code === 180) {
           notifyCalleeViaSocket(local, remote, id)
         }
       },
@@ -589,11 +599,8 @@ export const SIPProvider = ({ children }) => {
         emitCallEnd(session || currentCallRef.current, cause === 'Rejected' ? 'missed' : 'failed')
         resetCallState()
       },
-      onPeerConnection: (pc, session) => {
+      onPeerConnection: (pc) => {
         setPeerConnection(pc)
-        if (session?.direction === 'outgoing') {
-          setCallStatus((prev) => (prev === 'calling' ? 'ringing' : prev))
-        }
       },
     }
 
