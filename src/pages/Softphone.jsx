@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { User, Phone, PhoneOff } from 'lucide-react'
 import GlassCard from '../components/UI/GlassCard'
+import PageHeader from '../components/UI/PageHeader'
 import DialPad from '../components/Softphone/DialPad'
 import CallControls from '../components/Softphone/CallControls'
 import CallTimer from '../components/Softphone/CallTimer'
@@ -75,10 +76,7 @@ const Softphone = () => {
         transition={{ duration: 0.5 }}
         className="max-w-5xl mx-auto"
       >
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Softphone</h1>
-          <p className="text-gray-400">Make and receive SIP calls</p>
-        </div>
+        <PageHeader title="Softphone" description="Make and receive SIP calls" live={isRegistered} />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -88,12 +86,8 @@ const Softphone = () => {
 
               {/* Registration status bar */}
               <div className="flex items-center gap-2 mb-6">
-                <div className={`w-2.5 h-2.5 rounded-full ${
-                  sipOnline ? 'bg-green-500 animate-pulse'
-                    : isRegistered ? 'bg-amber-500 animate-pulse'
-                      : 'bg-red-500'
-                }`} />
-                <span className="text-sm text-gray-400">
+                <span className={sipOnline ? 'live-dot' : `w-2 h-2 rounded-full ${isRegistered ? 'bg-accent-amber animate-pulse' : 'bg-accent-rose'}`} />
+                <span className="text-sm text-muted">
                   {sipOnline
                     ? `Registered as extension ${extension} — ready for calls`
                     : isRegistered

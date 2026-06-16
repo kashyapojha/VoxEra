@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { Phone, BarChart, Settings, Activity, Clock, Users } from 'lucide-react'
 import { motion } from 'framer-motion'
+import LogoMark from '../UI/LogoMark'
 
 const Sidebar = ({ isOpen, onClose }) => {
   const location = useLocation()
@@ -14,7 +15,7 @@ const Sidebar = ({ isOpen, onClose }) => {
 
   const quickActions = [
     { label: 'Active Calls', icon: Phone, count: 0 },
-    { label: 'Call History', icon: Clock, count:- 0  },
+    { label: 'Call History', icon: Clock, count: 0 },
     { label: 'Users', icon: Users, count: 0 },
   ]
 
@@ -28,21 +29,17 @@ const Sidebar = ({ isOpen, onClose }) => {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30"
         />
       )}
 
-      <aside className={`fixed inset-y-0 left-0 z-40 w-64 glass border-r border-white/10 h-screen flex flex-col transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-40 w-64 glass border-r border-subtle h-screen flex flex-col transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-6">
-          <div className="flex items-center gap-3 mb-8">
-            <img src="/voxera-logo.png" alt="VoxEra Logo" className="w-24 h-24" />
-            <div className="flex flex-col">
-              <span className="text-2xl font-bold gradient-text">VoxEra</span>
-              <span className="text-xs text-gray-400">Enterprise Communications</span>
-            </div>
+          <div className="mb-8">
+            <LogoMark size="md" />
           </div>
 
-          <div className="space-y-2 mb-8">
+          <div className="space-y-1 mb-8">
             {menuItems.map((item) => {
               const Icon = item.icon
               return (
@@ -51,39 +48,37 @@ const Sidebar = ({ isOpen, onClose }) => {
                   to={item.path}
                   onClick={onClose}
                   className={`
-                    flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300
+                    flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-all duration-200
                     ${isActive(item.path)
-                      ? 'bg-gradient-primary text-white neon-glow'
-                      : 'text-gray-400 hover:text-white hover:bg-white/10'
+                      ? 'bg-white/[0.08] text-white border border-[var(--border-light)] neon-glow'
+                      : 'text-muted hover:text-white hover:bg-white/[0.04]'
                     }
                   `}
                 >
-                  <Icon size={20} />
+                  <Icon size={18} />
                   <span>{item.label}</span>
                 </Link>
               )
             })}
           </div>
 
-          <div className="border-t border-white/10 pt-6">
-            <h3 className="text-sm font-semibold text-gray-400 mb-4">Quick Stats</h3>
-            <div className="space-y-3">
+          <div className="border-t border-subtle pt-6">
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted mb-4">Quick Stats</h3>
+            <div className="space-y-2">
               {quickActions.map((action) => {
                 const Icon = action.icon
                 return (
-                  <div key={action.label} className="flex items-center justify-between p-3 rounded-lg bg-white/5">
+                  <div key={action.label} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-subtle">
                     <div className="flex items-center gap-3">
-                      <Icon size={16} className="text-accent" />
-                      <span className="text-sm text-gray-300">{action.label}</span>
+                      <Icon size={14} className="text-accent-cyan" />
+                      <span className="text-sm text-secondary">{action.label}</span>
                     </div>
-                    <span className="text-sm font-bold text-white">{action.count}</span>
+                    <span className="text-sm font-mono font-bold text-accent-mint">{action.count}</span>
                   </div>
                 )
               })}
             </div>
           </div>
-
-
         </div>
       </aside>
     </>

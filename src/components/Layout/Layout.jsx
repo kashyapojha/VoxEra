@@ -1,15 +1,14 @@
 import { useState } from 'react'
 import Navbar from './Navbar'
 import Sidebar from './Sidebar'
+import MeshBackground from '../UI/MeshBackground'
 
 const Layout = ({ children }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
-      <div className="bg-blob bg-blob-1" />
-      <div className="bg-blob bg-blob-2" />
-      <div className="bg-blob bg-blob-3" />
+      <MeshBackground />
 
       <div className="relative z-10 flex">
         <Sidebar
@@ -17,7 +16,7 @@ const Layout = ({ children }) => {
           onClose={() => setIsMobileMenuOpen(false)}
         />
 
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-w-0">
           <Navbar
             onMenuClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             isMobileMenuOpen={isMobileMenuOpen}

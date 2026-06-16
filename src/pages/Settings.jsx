@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { User, Bell, Shield, Phone, Globe, Save, LogOut } from 'lucide-react'
 import GlassCard from '../components/UI/GlassCard'
+import PageHeader from '../components/UI/PageHeader'
 import { useSip } from '../context/SIPContext'
 import { useAuth } from '../context/AuthContext'
 import { env, parseSipUri, hostFromUrl, resolveSipPassword, resolveSipWebSocketUrl } from '../config/env'
@@ -139,10 +140,7 @@ const Settings = () => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Settings</h1>
-        <p className="text-gray-400">Manage your account and preferences</p>
-      </div>
+      <PageHeader title="Settings" description="Manage your account and SIP preferences" />
 
       <div className="space-y-6">
         {settingsSections.map((section, index) => {
@@ -150,7 +148,7 @@ const Settings = () => {
           return (
             <GlassCard key={index}>
               <div className="flex items-center gap-2 mb-6">
-                <Icon size={20} className="text-accent" />
+                <Icon size={20} className="text-accent-cyan" />
                 <h3 className="text-lg font-semibold">{section.title}</h3>
               </div>
 
@@ -277,7 +275,7 @@ const Settings = () => {
                         whileTap={{ scale: 0.98 }}
                         onClick={handleSIPRegister}
                         disabled={isRegistering}
-                        className="px-6 py-3 rounded-xl bg-gradient-primary text-white font-semibold hover:shadow-[0_0_30px_rgba(91,46,255,0.5)] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isRegistering ? 'Registering...' : 'Register'}
                       </motion.button>
@@ -332,7 +330,7 @@ const Settings = () => {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => { /* placeholder: persist settings to localStorage */ localStorage.setItem('voipsight_settings', JSON.stringify({ sipConfig })); }}
-            className="px-8 py-3 rounded-xl bg-gradient-primary text-white font-semibold hover:shadow-[0_0_30px_rgba(91,46,255,0.5)] transition-all duration-300 flex items-center gap-2"
+            className="btn-primary"
           >
             <Save size={20} />
             Save Changes

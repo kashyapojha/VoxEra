@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion'
 import { BarChart, PieChart } from 'lucide-react'
 import GlassCard from '../components/UI/GlassCard'
+import PageHeader from '../components/UI/PageHeader'
 import RealtimeChart from '../components/Analytics/RealtimeChart'
 import CallHistory from '../components/Analytics/CallHistory'
 import { useEffect, useState } from 'react'
@@ -40,10 +41,10 @@ const Analytics = () => {
   const totalCalls = calls.length
 
   const callStats = [
-    { label: 'Completed', value: completedCalls, color: 'bg-green-500' },
-    { label: 'Missed', value: missedCalls, color: 'bg-red-500' },
-    { label: 'Failed', value: failedCalls, color: 'bg-orange-500' },
-    { label: 'In Progress', value: inProgress, color: 'bg-blue-500' }
+    { label: 'Completed', value: completedCalls, accent: 'mint' },
+    { label: 'Missed', value: missedCalls, accent: 'rose' },
+    { label: 'Failed', value: failedCalls, accent: 'amber' },
+    { label: 'In Progress', value: inProgress, accent: 'cyan' },
   ]
 
   // Top callers
@@ -60,20 +61,17 @@ const Analytics = () => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Reports</h1>
-        <p className="text-gray-400">Detailed call reports</p>
-      </div>
+      <PageHeader title="Reports" description="Detailed call reports and distribution" />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <GlassCard>
           <div className="flex items-center gap-2 mb-6">
-            <PieChart size={20} className="text-accent" />
+            <PieChart size={20} className="text-accent-violet" />
             <h3 className="text-lg font-semibold">Call Distribution</h3>
           </div>
           {totalCalls === 0 ? (
-            <div className="flex flex-col items-center justify-center h-48 text-gray-500">
-              <PieChart size={48} className="mb-2 opacity-50" />
+            <div className="flex flex-col items-center justify-center h-48 text-muted">
+              <PieChart size={48} className="mb-2 opacity-40" />
               <p>No call data available</p>
               <p className="text-sm mt-1">Make calls to see analytics</p>
             </div>
@@ -82,15 +80,15 @@ const Analytics = () => {
               {callStats.map((stat, index) => (
                 <div key={index}>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-300">{stat.label}</span>
-                    <span className="text-sm font-semibold">{stat.value}</span>
+                    <span className="text-sm text-secondary">{stat.label}</span>
+                    <span className="text-sm font-mono font-semibold">{stat.value}</span>
                   </div>
-                  <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                  <div className="progress-bar">
                     <motion.div
                       initial={{ width: 0 }}
                       animate={{ width: totalCalls > 0 ? `${(stat.value / totalCalls) * 100}%` : '0%' }}
                       transition={{ duration: 1, delay: index * 0.1 }}
-                      className={`h-full ${stat.color}`}
+                      className="progress-bar-fill"
                     />
                   </div>
                 </div>
@@ -101,12 +99,12 @@ const Analytics = () => {
 
         <GlassCard>
           <div className="flex items-center gap-2 mb-6">
-            <BarChart size={20} className="text-accent" />
+            <BarChart size={20} className="text-accent-cyan" />
             <h3 className="text-lg font-semibold">Top Callers</h3>
           </div>
           {topCallers.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-48 text-gray-500">
-              <BarChart size={48} className="mb-2 opacity-50" />
+            <div className="flex flex-col items-center justify-center h-48 text-muted">
+              <BarChart size={48} className="mb-2 opacity-40" />
               <p>No caller data available</p>
               <p className="text-sm mt-1">Make calls to see top callers</p>
             </div>
@@ -115,13 +113,13 @@ const Analytics = () => {
               {topCallers.map((caller, index) => (
                 <div
                   key={index}
-                  className="flex items-center justify-between p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                  className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-subtle hover:border-[var(--border-light)] transition-colors"
                 >
                   <div>
-                    <p className="font-semibold text-white">{caller.name}</p>
-                    <p className="text-xs text-gray-400">{caller.calls} calls</p>
+                    <p className="font-semibold">{caller.name}</p>
+                    <p className="text-xs text-muted font-mono">{caller.calls} calls</p>
                   </div>
-                  <span className="text-sm text-gray-300">{caller.duration}</span>
+                  <span className="text-sm font-mono text-accent-cyan">#{index + 1}</span>
                 </div>
               ))}
             </div>

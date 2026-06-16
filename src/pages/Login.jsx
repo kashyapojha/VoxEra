@@ -3,6 +3,8 @@ import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Mail, Lock, ArrowRight, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import MeshBackground from '../components/UI/MeshBackground'
+import LogoMark from '../components/UI/LogoMark'
 
 const Login = () => {
   const navigate = useNavigate()
@@ -27,9 +29,7 @@ const Login = () => {
     e.preventDefault()
     setError('')
     setSuccessMsg('')
-
     const result = await login(formData.email, formData.password)
-
     if (result.success) {
       if (rememberMe) {
         localStorage.setItem('voxera_email', formData.email)
@@ -44,16 +44,9 @@ const Login = () => {
     }
   }
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
-    setError('')
-  }
-
   return (
     <div className="min-h-screen bg-background relative overflow-hidden flex items-center justify-center p-4">
-      <div className="bg-blob bg-blob-1" />
-      <div className="bg-blob bg-blob-2" />
-      <div className="bg-blob bg-blob-3" />
+      <MeshBackground />
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -61,106 +54,62 @@ const Login = () => {
         transition={{ duration: 0.5 }}
         className="relative z-10 w-full max-w-md"
       >
-        <div className="glass-card p-8">
+        <div className="glass-card border border-[var(--border-light)]">
           <div className="flex flex-col items-center mb-8">
-            <img src="/voxera-logo.png" alt="VoxEra Logo" className="w-48 h-48 mb-4" />
-            <h1 className="text-3xl font-bold gradient-text mb-1">VoxEra</h1>
-            <p className="text-sm text-gray-400 mb-2">Enterprise Communications</p>
-            <p className="text-gray-400 mt-2">Sign in to your account</p>
+            <LogoMark size="lg" />
+            <p className="text-muted mt-4">Sign in to your account</p>
           </div>
 
           {successMsg && (
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/20 text-green-400 mb-4">
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-accent-mint/10 border border-accent-mint/20 text-accent-mint mb-4 text-sm">
               <CheckCircle size={16} />
-              <span className="text-sm">{successMsg}</span>
+              <span>{successMsg}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/20 text-red-400">
+              <div className="flex items-center gap-2 p-3 rounded-xl bg-accent-rose/10 border border-accent-rose/20 text-accent-rose text-sm">
                 <AlertCircle size={16} />
-                <span className="text-sm">{error}</span>
+                <span>{error}</span>
               </div>
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Email Address
-              </label>
+              <label className="block text-sm text-secondary mb-2">Email Address</label>
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  placeholder="you@example.com"
-                  className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-accent/50 transition-colors"
-                  required
-                />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
+                <input type="email" name="email" value={formData.email} onChange={(e) => { setFormData({ ...formData, email: e.target.value }); setError('') }} placeholder="you@example.com" className="input-field pl-11" required />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Password
-              </label>
+              <label className="block text-sm text-secondary mb-2">Password</label>
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  placeholder="••••••••"
-                  className="w-full pl-12 pr-12 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-accent/50 transition-colors"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
-                >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
+                <input type={showPassword ? 'text' : 'password'} name="password" value={formData.password} onChange={(e) => { setFormData({ ...formData, password: e.target.value }); setError('') }} placeholder="••••••••" className="input-field pl-11 pr-11" required />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-muted hover:text-white transition-colors">
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 rounded bg-white/10 border-white/20 cursor-pointer"
-                />
-                <span className="text-sm text-gray-400">Remember me</span>
-              </label>
-            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="w-4 h-4 rounded bg-white/5 border-[var(--border-light)]" />
+              <span className="text-sm text-muted">Remember me</span>
+            </label>
 
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              type="submit"
-              className="w-full py-3 rounded-xl bg-gradient-primary text-white font-semibold hover:shadow-[0_0_30px_rgba(91,46,255,0.5)] transition-all duration-300 flex items-center justify-center gap-2"
-            >
-              Sign In
-              <ArrowRight size={20} />
-            </motion.button>
+            <button type="submit" className="btn-primary w-full">
+              Sign In <ArrowRight size={18} />
+            </button>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-gray-400">
-              Don&apos;t have an account?{' '}
-              <Link to="/signup" className="text-accent hover:underline font-semibold">
-                Sign up
-              </Link>
-            </p>
+          <div className="mt-6 text-center text-sm text-muted">
+            Don&apos;t have an account?{' '}
+            <Link to="/signup" className="text-accent-cyan hover:underline font-semibold">Sign up</Link>
           </div>
-
-          <p className="text-center text-gray-500 text-sm mt-6">
-            <Link to="/" className="hover:text-gray-300 transition-colors">← Back to home</Link>
+          <p className="text-center text-muted text-sm mt-4">
+            <Link to="/" className="hover:text-white transition-colors">← Back to home</Link>
           </p>
         </div>
       </motion.div>
